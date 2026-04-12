@@ -1,6 +1,8 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { OrbitalParams } from '../types.js';
+import { PARAM_DEFS } from '../config/params.js';
+import type { SliderDef } from '../config/params.js';
 import './collapsible-panel.js';
 
 interface OrbitalPreset {
@@ -137,30 +139,32 @@ export class ControlPanel extends LitElement {
     );
   }
 
-  private slider(
-    label: string,
-    key: string,
-    sliderVal: number,
-    min: number,
-    max: number,
-    step: number,
-    display: string,
-    toParam: (v: number) => number = (v) => v,
+  private sliderFromDef(
+    key: keyof OrbitalParams,
+    def: SliderDef,
+    paramVal: number,
+    minOverride?: number,
+    maxOverride?: number,
   ) {
+    const toSlider = def.toSlider ?? ((v: number) => v);
+    const toParam = def.toParam ?? ((v: number) => v);
+    const display = def.display ?? ((v: number) => String(v));
+    const min = minOverride ?? def.min;
+    const max = maxOverride ?? def.max;
     return html`
       <div class="control-group">
-        <label>${label}</label>
+        <label>${def.label}</label>
         <div class="row">
           <input
             type="range"
-            .value=${String(sliderVal)}
+            .value=${String(toSlider(paramVal))}
             min=${min}
             max=${max}
-            step=${step}
+            step=${def.step}
             @change=${(e: Event) =>
               this.emit(key, toParam(+(e.target as HTMLInputElement).value))}
           />
-          <span class="val">${display}</span>
+          <span class="val">${display(paramVal)}</span>
         </div>
       </div>
     `;
@@ -188,9 +192,9 @@ export class ControlPanel extends LitElement {
 
         <div class="section">
           <h3>Quantum Numbers</h3>
-          ${this.slider('n (shell)', 'n', n, 1, 5, 1, String(n))}
-          ${this.slider('l (angular)', 'l', l, 0, n - 1, 1, String(l))}
-          ${this.slider('m (magnetic)', 'm', m, -l, l, 1, String(m))}
+          ${this.sliderFromDef('n', PARAM_DEFS.n!, n)}
+          ${this.sliderFromDef('l', PARAM_DEFS.l!, l, 0, n - 1)}
+          ${this.sliderFromDef('m', PARAM_DEFS.m!, m, -l, l)}
         </div>
       </collapsible-panel>
     `;

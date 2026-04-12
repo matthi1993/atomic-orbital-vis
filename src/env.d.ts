@@ -86,7 +86,13 @@ declare module 'three' {
       opacity?: number;
       blending?: number;
       depthWrite?: boolean;
+      depthTest?: boolean;
     });
+    opacity: number;
+    blending: number;
+    depthWrite: boolean;
+    depthTest: boolean;
+    needsUpdate: boolean;
   }
 
   export class Mesh extends Object3D {
@@ -112,6 +118,7 @@ declare module 'three' {
   }
 
   export const AdditiveBlending: number;
+  export const NormalBlending: number;
 
   export class WebGPURenderer {
     constructor(params?: { antialias?: boolean });
@@ -134,6 +141,8 @@ declare module 'three/examples/jsm/controls/OrbitControls.js' {
     dampingFactor: number;
     minDistance: number;
     maxDistance: number;
+    autoRotate: boolean;
+    autoRotateSpeed: number;
     update(): void;
     dispose(): void;
   }

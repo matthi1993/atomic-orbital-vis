@@ -24,6 +24,13 @@ export class SceneManager {
     this.controls.dampingFactor = 0.08;
     this.controls.minDistance = 2;
     this.controls.maxDistance = 200;
+    this.controls.autoRotate = false;
+    this.controls.autoRotateSpeed = 0;
+  }
+
+  set autoRotateSpeed(speed: number) {
+    this.controls.autoRotate = speed > 0;
+    this.controls.autoRotateSpeed = speed * 10;
   }
 
   async init(): Promise<void> {

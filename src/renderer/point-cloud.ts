@@ -11,6 +11,7 @@ export class PointCloud {
   private camera: THREE.PerspectiveCamera;
   private _pointSize = 4.0;
   private _opacity = 0.75;
+  private _opaqueMode = false;
   private count = 0;
 
   private readonly _mat = new THREE.Matrix4();
@@ -29,11 +30,13 @@ export class PointCloud {
 
     this.geometry = new THREE.CircleGeometry(0.5, CIRCLE_SEGMENTS);
 
+    const opaque = this._opaqueMode;
     this.material = new THREE.MeshBasicMaterial({
       transparent: true,
-      opacity: 0.75,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+      opacity: this._opacity,
+      blending: opaque ? THREE.NormalBlending : THREE.AdditiveBlending,
+      depthWrite: opaque,
+      depthTest: true,
     });
 
     this.mesh = new THREE.InstancedMesh(this.geometry, this.material, count);
@@ -73,6 +76,23 @@ export class PointCloud {
     this._opacity = value;
     if (this.material) {
       this.material.opacity = value;
+    }
+  }
+
+  set opaqueMode(value: boolean) {
+    if (this._opaqueMode === value) return;
+    this._opaqueMode = value;
+    if (this.material) {
+      if (value) {
+        this.material.blending = THREE.NormalBlending;
+        this.material.depthWrite = true;
+        this.material.depthTest = true;
+      } else {
+        this.material.blending = THREE.AdditiveBlending;
+        this.material.depthWrite = false;
+        this.material.depthTest = true;
+      }
+      this.material.needsUpdate = true;
     }
   }
 

@@ -1,7 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import type { OrbitalParams } from '../types.js';
-import { DEFAULT_PARAMS } from '../config/defaults.js';
+import { DEFAULT_PARAMS } from '../config/params.js';
 import { estimateMaxPsi } from '../physics/particle-generator.js';
 import { ComputePipeline } from '../gpu/compute-pipeline.js';
 import { OrbitalPipeline } from '../gpu/orbital-pipeline.js';
@@ -133,7 +133,7 @@ export class OrbitalApp extends LitElement {
     }
   };
 
-  private onParamChange = (e: CustomEvent<{ key: string; value: number }>) => {
+  private onParamChange = (e: CustomEvent<{ key: string; value: number | boolean }>) => {
     const { key, value } = e.detail;
     const next = { ...this.params, [key]: value };
 
@@ -186,8 +186,10 @@ export class OrbitalApp extends LitElement {
 
     this.pointCloud.pointSize = this.params.pointSize;
     this.pointCloud.opacity = this.params.electronOpacity;
+    this.pointCloud.opaqueMode = this.params.opaqueMode;
+    this.sceneManager.autoRotateSpeed = this.params.rotSpeed;
 
-    const encoder = this.compute.dispatch(this.elapsedTime, dt, this.params.rotSpeed);
+    const encoder = this.compute.dispatch(this.elapsedTime, dt, 0);
     this.compute.submitAndReadback(encoder, (positions) => {
       this.pointCloud.updatePositions(positions);
     });

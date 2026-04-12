@@ -8,16 +8,19 @@ export class PointCloud {
   private geometry: THREE.CircleGeometry | null = null;
   private material: THREE.MeshBasicMaterial | null = null;
   private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
+  private camera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
   private _pointSize = 4.0;
   private _opacity = 0.75;
+  private _opaqueMode = false;
+  private _visible = true;
+  private _cutPlane: 'none' | 'x' | 'y' | 'z' = 'none';
   private count = 0;
 
   private readonly _mat = new THREE.Matrix4();
   private readonly _pos = new THREE.Vector3();
   private readonly _scl = new THREE.Vector3();
 
-  constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
+  constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
     this.scene = scene;
     this.camera = camera;
   }
@@ -29,11 +32,13 @@ export class PointCloud {
 
     this.geometry = new THREE.CircleGeometry(0.5, CIRCLE_SEGMENTS);
 
+    const opaque = this._opaqueMode;
     this.material = new THREE.MeshBasicMaterial({
       transparent: true,
-      opacity: 0.75,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+      opacity: this._opacity,
+      blending: opaque ? THREE.NormalBlending : THREE.AdditiveBlending,
+      depthWrite: opaque,
+      depthTest: true,
     });
 
     this.mesh = new THREE.InstancedMesh(this.geometry, this.material, count);
@@ -57,9 +62,21 @@ export class PointCloud {
     const s = this._pointSize * SIZE_SCALE;
     this._scl.set(s, s, s);
 
+    const cut = this._cutPlane;
+    const zeroScale = new THREE.Vector3(0, 0, 0);
+
     for (let i = 0; i < this.count; i++) {
-      this._pos.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
-      this._mat.compose(this._pos, q, this._scl);
+      const px = positions[i * 3];
+      const py = positions[i * 3 + 1];
+      const pz = positions[i * 3 + 2];
+      this._pos.set(px, py, pz);
+
+      const clipped =
+        (cut === 'x' && px > 0) ||
+        (cut === 'y' && py > 0) ||
+        (cut === 'z' && pz > 0);
+
+      this._mat.compose(this._pos, q, clipped ? zeroScale : this._scl);
       this.mesh.setMatrixAt(i, this._mat);
     }
     this.mesh.instanceMatrix.needsUpdate = true;
@@ -74,6 +91,36 @@ export class PointCloud {
     if (this.material) {
       this.material.opacity = value;
     }
+  }
+
+  set visible(value: boolean) {
+    this._visible = value;
+    if (this.mesh) this.mesh.visible = value;
+  }
+
+  set activeCamera(cam: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
+    this.camera = cam;
+  }
+
+  set opaqueMode(value: boolean) {
+    if (this._opaqueMode === value) return;
+    this._opaqueMode = value;
+    if (this.material) {
+      if (value) {
+        this.material.blending = THREE.NormalBlending;
+        this.material.depthWrite = true;
+        this.material.depthTest = true;
+      } else {
+        this.material.blending = THREE.AdditiveBlending;
+        this.material.depthWrite = false;
+        this.material.depthTest = true;
+      }
+      this.material.needsUpdate = true;
+    }
+  }
+
+  set cutPlane(axis: 'none' | 'x' | 'y' | 'z') {
+    this._cutPlane = axis;
   }
 
   dispose(): void {

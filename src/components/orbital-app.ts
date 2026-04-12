@@ -1,13 +1,14 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import type { OrbitalParams } from '../types.js';
-import { DEFAULT_PARAMS } from '../config/defaults.js';
+import { DEFAULT_PARAMS } from '../config/params.js';
 import { estimateMaxPsi } from '../physics/particle-generator.js';
 import { ComputePipeline } from '../gpu/compute-pipeline.js';
 import { OrbitalPipeline } from '../gpu/orbital-pipeline.js';
 import { SceneManager } from '../renderer/scene-manager.js';
 import { PointCloud } from '../renderer/point-cloud.js';
 import { Nucleus } from '../renderer/nucleus.js';
+import { AxesPlots } from '../renderer/axes-plots.js';
 import './control-panel.js';
 import './render-panel.js';
 
@@ -23,6 +24,7 @@ export class OrbitalApp extends LitElement {
   private orbitalPipeline!: OrbitalPipeline;
   private pointCloud!: PointCloud;
   private nucleus!: Nucleus;
+  private axesPlots!: AxesPlots;
   private lastTime = 0;
   private elapsedTime = 0;
   private generating = false;
@@ -96,6 +98,7 @@ export class OrbitalApp extends LitElement {
       <render-panel
         .params=${this.params}
         @param-change=${this.onParamChange}
+        @camera-view=${this.onCameraView}
       ></render-panel>
       <div class="info">Drag to rotate · Scroll to zoom · WebGPU Compute Shader</div>
     `;
@@ -112,6 +115,7 @@ export class OrbitalApp extends LitElement {
     this.orbitalPipeline = new OrbitalPipeline(this.sceneManager.device);
     this.pointCloud = new PointCloud(this.sceneManager.scene, this.sceneManager.camera);
     this.nucleus = new Nucleus(this.sceneManager.scene);
+    this.axesPlots = new AxesPlots(this.sceneManager.scene);
 
     await this.regenerate();
     this.lastTime = performance.now();
@@ -133,7 +137,7 @@ export class OrbitalApp extends LitElement {
     }
   };
 
-  private onParamChange = (e: CustomEvent<{ key: string; value: number }>) => {
+  private onParamChange = (e: CustomEvent<{ key: string; value: number | boolean | string }>) => {
     const { key, value } = e.detail;
     const next = { ...this.params, [key]: value };
 
@@ -157,6 +161,10 @@ export class OrbitalApp extends LitElement {
     this.regenerate();
   };
 
+  private onCameraView = (e: CustomEvent<{ axis: string }>) => {
+    this.sceneManager.lookAlongAxis(e.detail.axis as 'x' | 'y' | 'z');
+  };
+
   private async regenerate() {
     if (this.generating) return;
     this.generating = true;
@@ -173,6 +181,13 @@ export class OrbitalApp extends LitElement {
     this.compute.uploadParticles(positions);
     this.pointCloud.create(usedCount, colors, this.params.pointSize);
 
+    this.axesPlots.update(n, l, m, scale);
+    this.axesPlots.showAxes = this.params.showAxes;
+    this.axesPlots.showRadialPlot = this.params.showRadialPlot;
+    this.axesPlots.showCombinedPlot = this.params.showCombinedPlot;
+    this.axesPlots.showThetaPlot = this.params.showThetaPlot;
+    this.axesPlots.showPhiPlot = this.params.showPhiPlot;
+
     this.generating = false;
   }
 
@@ -186,8 +201,19 @@ export class OrbitalApp extends LitElement {
 
     this.pointCloud.pointSize = this.params.pointSize;
     this.pointCloud.opacity = this.params.electronOpacity;
+    this.pointCloud.opaqueMode = this.params.opaqueMode;
+    this.pointCloud.visible = this.params.showElectrons;
+    this.pointCloud.cutPlane = this.params.cutPlane;
+    this.sceneManager.orthographic = this.params.orthographic;
+    this.pointCloud.activeCamera = this.sceneManager.camera;
+    this.sceneManager.autoRotateSpeed = this.params.rotSpeed;
+    this.axesPlots.showAxes = this.params.showAxes;
+    this.axesPlots.showRadialPlot = this.params.showRadialPlot;
+    this.axesPlots.showCombinedPlot = this.params.showCombinedPlot;
+    this.axesPlots.showThetaPlot = this.params.showThetaPlot;
+    this.axesPlots.showPhiPlot = this.params.showPhiPlot;
 
-    const encoder = this.compute.dispatch(this.elapsedTime, dt, this.params.rotSpeed);
+    const encoder = this.compute.dispatch(this.elapsedTime, dt, 0);
     this.compute.submitAndReadback(encoder, (positions) => {
       this.pointCloud.updatePositions(positions);
     });

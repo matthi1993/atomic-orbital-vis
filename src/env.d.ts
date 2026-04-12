@@ -7,6 +7,11 @@ declare module 'three' {
     x: number; y: number; z: number;
     set(x: number, y: number, z: number): this;
     setScalar(scalar: number): this;
+    clone(): Vector3;
+    copy(v: Vector3): this;
+    add(v: Vector3): this;
+    multiplyScalar(scalar: number): this;
+    length(): number;
   }
 
   export class Color {
@@ -30,7 +35,12 @@ declare module 'three' {
     scale: Vector3;
     position: Vector3;
     quaternion: Quaternion;
+    visible: boolean;
+    children: Object3D[];
+    renderOrder: number;
   }
+
+  export class Group extends Object3D {}
 
   export class Scene extends Object3D {}
 
@@ -38,7 +48,17 @@ declare module 'three' {
 
   export class PerspectiveCamera extends Camera {
     constructor(fov?: number, aspect?: number, near?: number, far?: number);
+    fov: number;
     aspect: number;
+    updateProjectionMatrix(): void;
+  }
+
+  export class OrthographicCamera extends Camera {
+    constructor(left?: number, right?: number, top?: number, bottom?: number, near?: number, far?: number);
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
     updateProjectionMatrix(): void;
   }
 
@@ -50,12 +70,21 @@ declare module 'three' {
 
   export class BufferGeometry {
     setAttribute(name: string, attribute: BufferAttribute): this;
+    setFromPoints(points: Vector3[]): this;
     attributes: Record<string, BufferAttribute>;
     dispose(): void;
   }
 
   export class Material {
     dispose(): void;
+  }
+
+  export class Texture {
+    dispose(): void;
+  }
+
+  export class CanvasTexture extends Texture {
+    constructor(canvas: HTMLCanvasElement);
   }
 
   export class PointsMaterial extends Material {
@@ -86,11 +115,45 @@ declare module 'three' {
       opacity?: number;
       blending?: number;
       depthWrite?: boolean;
+      depthTest?: boolean;
     });
+    opacity: number;
+    blending: number;
+    depthWrite: boolean;
+    depthTest: boolean;
+    needsUpdate: boolean;
   }
 
   export class Mesh extends Object3D {
     constructor(geometry?: BufferGeometry, material?: Material);
+  }
+
+  export class Line extends Object3D {
+    constructor(geometry?: BufferGeometry, material?: Material);
+  }
+
+  export class LineBasicMaterial extends Material {
+    constructor(params?: {
+      color?: number | string;
+      transparent?: boolean;
+      opacity?: number;
+      linewidth?: number;
+      depthTest?: boolean;
+      depthWrite?: boolean;
+    });
+  }
+
+  export class SpriteMaterial extends Material {
+    constructor(params?: {
+      map?: Texture;
+      transparent?: boolean;
+      depthTest?: boolean;
+      depthWrite?: boolean;
+    });
+  }
+
+  export class Sprite extends Object3D {
+    constructor(material?: SpriteMaterial);
   }
 
   export class CircleGeometry extends BufferGeometry {
@@ -112,6 +175,11 @@ declare module 'three' {
   }
 
   export const AdditiveBlending: number;
+  export const NormalBlending: number;
+
+  export namespace MathUtils {
+    function degToRad(degrees: number): number;
+  }
 
   export class WebGPURenderer {
     constructor(params?: { antialias?: boolean });
@@ -126,14 +194,18 @@ declare module 'three' {
 }
 
 declare module 'three/examples/jsm/controls/OrbitControls.js' {
-  import { Camera } from 'three';
+  import { Camera, Vector3 } from 'three';
 
   export class OrbitControls {
     constructor(camera: Camera, domElement: HTMLElement);
+    object: Camera;
+    target: Vector3;
     enableDamping: boolean;
     dampingFactor: number;
     minDistance: number;
     maxDistance: number;
+    autoRotate: boolean;
+    autoRotateSpeed: number;
     update(): void;
     dispose(): void;
   }

@@ -104,7 +104,7 @@ export class OrbitalApp extends LitElement {
 
     this.compute = new ComputePipeline(this.sceneManager.device);
     this.orbitalPipeline = new OrbitalPipeline(this.sceneManager.device);
-    this.pointCloud = new PointCloud(this.sceneManager.scene);
+    this.pointCloud = new PointCloud(this.sceneManager.scene, this.sceneManager.camera);
     this.nucleus = new Nucleus(this.sceneManager.scene);
 
     await this.regenerate();

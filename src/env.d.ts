@@ -13,11 +13,23 @@ declare module 'three' {
     constructor(color?: number | string);
   }
 
+  export class Quaternion {
+    constructor(x?: number, y?: number, z?: number, w?: number);
+    x: number; y: number; z: number; w: number;
+    copy(q: Quaternion): this;
+  }
+
+  export class Matrix4 {
+    constructor();
+    compose(position: Vector3, quaternion: Quaternion, scale: Vector3): this;
+  }
+
   export class Object3D {
     add(...objects: Object3D[]): this;
     remove(...objects: Object3D[]): this;
     scale: Vector3;
     position: Vector3;
+    quaternion: Quaternion;
   }
 
   export class Scene extends Object3D {}
@@ -72,11 +84,31 @@ declare module 'three' {
       color?: number | string;
       transparent?: boolean;
       opacity?: number;
+      blending?: number;
+      depthWrite?: boolean;
     });
   }
 
   export class Mesh extends Object3D {
     constructor(geometry?: BufferGeometry, material?: Material);
+  }
+
+  export class CircleGeometry extends BufferGeometry {
+    constructor(radius?: number, segments?: number);
+  }
+
+  export class InstancedBufferAttribute extends BufferAttribute {
+    constructor(array: ArrayLike<number>, itemSize: number);
+  }
+
+  export class InstancedMesh extends Object3D {
+    constructor(geometry: BufferGeometry, material: Material, count: number);
+    instanceMatrix: InstancedBufferAttribute;
+    instanceColor: InstancedBufferAttribute | null;
+    count: number;
+    setMatrixAt(index: number, matrix: Matrix4): void;
+    setColorAt(index: number, color: Color): void;
+    dispose(): void;
   }
 
   export const AdditiveBlending: number;

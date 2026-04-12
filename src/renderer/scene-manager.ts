@@ -8,6 +8,9 @@ export class SceneManager {
   readonly orthoCamera: THREE.OrthographicCamera;
   readonly controls: OrbitControls;
   private _orthographic = false;
+  private _needsRender = true;
+  private _lastCamPos = new THREE.Vector3();
+  private _lastCamQuat = new THREE.Quaternion();
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGPURenderer({ antialias: true });
@@ -94,8 +97,25 @@ export class SceneManager {
     this.renderer.setSize(width, height);
   }
 
-  render(): void {
+  markDirty(): void {
+    this._needsRender = true;
+  }
+
+  render(): boolean {
     this.controls.update();
+
+    // Detect if camera actually moved since last frame
+    const cam = this.camera;
+    const posChanged = !cam.position.equals(this._lastCamPos);
+    const quatChanged = !cam.quaternion.equals(this._lastCamQuat);
+    if (posChanged || quatChanged) {
+      this._needsRender = true;
+      this._lastCamPos.copy(cam.position);
+      this._lastCamQuat.copy(cam.quaternion);
+    }
+
+    if (!this._needsRender) return false;
+    this._needsRender = false;
 
     if (this._orthographic) {
       const dist = this.orthoCamera.position.length();
@@ -109,6 +129,7 @@ export class SceneManager {
     }
 
     this.renderer.render(this.scene, this.camera);
+    return true;
   }
 
   /** Snap the active camera to look along a world axis. */

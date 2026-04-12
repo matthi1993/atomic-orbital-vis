@@ -20,6 +20,12 @@ export class PointCloud {
   private readonly _pos = new THREE.Vector3();
   private readonly _scl = new THREE.Vector3();
 
+  private storedPositions: Float32Array | null = null;
+  private matrixDirty = true;
+  private lastQuaternion = new THREE.Quaternion();
+  private lastPointSize = 0;
+  private lastCutPlane: 'none' | 'x' | 'y' | 'z' = 'none';
+
   constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
     this.scene = scene;
     this.camera = camera;
@@ -55,9 +61,34 @@ export class PointCloud {
     this.scene.add(this.mesh);
   }
 
-  updatePositions(positions: Float32Array): void {
-    if (!this.mesh) return;
+  setPositions(positions: Float32Array): void {
+    this.storedPositions = positions;
+    this.matrixDirty = true;
+  }
 
+  updateIfNeeded(): void {
+    if (!this.mesh || !this.storedPositions || !this._visible) return;
+
+    const cq = this.camera.quaternion;
+    const lq = this.lastQuaternion;
+    const qChanged = cq.x !== lq.x || cq.y !== lq.y || cq.z !== lq.z || cq.w !== lq.w;
+    const sizeChanged = this._pointSize !== this.lastPointSize;
+    const cutChanged = this._cutPlane !== this.lastCutPlane;
+
+    if (!this.matrixDirty && !qChanged && !sizeChanged && !cutChanged) return;
+
+    this.lastQuaternion.copy(this.camera.quaternion);
+    this.lastPointSize = this._pointSize;
+    this.lastCutPlane = this._cutPlane;
+    this.matrixDirty = false;
+
+    this.rebuildMatrices();
+  }
+
+  private rebuildMatrices(): void {
+    if (!this.mesh || !this.storedPositions) return;
+
+    const positions = this.storedPositions;
     const q = this.camera.quaternion;
     const s = this._pointSize * SIZE_SCALE;
     this._scl.set(s, s, s);

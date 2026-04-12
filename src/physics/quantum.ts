@@ -71,3 +71,11 @@ export function psiSquared(
   const Y = sphericalHarmonic(l, m, theta, phi);
   return R * R * Y * Y;
 }
+
+/** Signed wavefunction ψ = R_nl · Y_lm at spherical coordinates (r, θ, φ) */
+export function psi(
+  n: number, l: number, m: number,
+  r: number, theta: number, phi: number,
+): number {
+  return radialWave(n, l, r) * sphericalHarmonic(l, m, theta, phi);
+}

@@ -78,8 +78,8 @@ export const PARAM_DEFS: Partial<Record<keyof OrbitalParams, SliderDef>> = {
 /* ── Default values ──────────────────────────────────────────────────── */
 
 export const DEFAULT_PARAMS: OrbitalParams = {
-  n: 2,
-  l: 1,
+  n: 1,
+  l: 0,
   m: 0,
   count: 50000,
   threshold: 0.15,

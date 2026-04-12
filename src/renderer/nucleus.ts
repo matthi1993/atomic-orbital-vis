@@ -1,26 +1,113 @@
 import * as THREE from 'three';
 
+interface NucleusEntry {
+  id: string;
+  mesh: THREE.Mesh;
+  glow: THREE.Mesh;
+  meshMat: THREE.MeshBasicMaterial;
+  glowMat: THREE.MeshBasicMaterial;
+}
+
+/**
+ * Manages one or more nucleus visualisations in the scene.
+ * Each nucleus is identified by a string key (typically an Atom ID).
+ * Supports raycasting for click-to-select and visual selection highlight.
+ */
 export class Nucleus {
-  private mesh: THREE.Mesh;
-  private glow: THREE.Mesh;
+  private scene: THREE.Scene;
+  private entries: Map<string, NucleusEntry> = new Map();
+  private _selectedId: string | null = null;
+
+  /* Shared geometry – created once, reused for every nucleus */
+  private coreGeo = new THREE.SphereGeometry(0.3, 32, 32);
+  private glowGeo = new THREE.SphereGeometry(0.6, 32, 32);
+  /* Larger invisible sphere for easier clicking */
+  private hitGeo = new THREE.SphereGeometry(1.2, 16, 16);
+
+  private raycaster = new THREE.Raycaster();
+  private mouse = new THREE.Vector2();
 
   constructor(scene: THREE.Scene) {
-    this.mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.3, 32, 32),
-      new THREE.MeshBasicMaterial({ color: 0xffffaa }),
-    );
-    scene.add(this.mesh);
+    this.scene = scene;
+  }
 
-    this.glow = new THREE.Mesh(
-      new THREE.SphereGeometry(0.6, 32, 32),
-      new THREE.MeshBasicMaterial({ color: 0xffffcc, transparent: true, opacity: 0.15 }),
-    );
-    scene.add(this.glow);
+  addNucleus(id: string, position: [number, number, number] = [0, 0, 0]): void {
+    if (this.entries.has(id)) return;
+
+    const meshMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
+    const mesh = new THREE.Mesh(this.coreGeo, meshMat);
+    mesh.position.set(...position);
+
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xffffcc, transparent: true, opacity: 0.15 });
+    const glow = new THREE.Mesh(this.glowGeo, glowMat);
+    glow.position.set(...position);
+
+    this.scene.add(mesh);
+    this.scene.add(glow);
+    this.entries.set(id, { id, mesh, glow, meshMat, glowMat });
+  }
+
+  removeNucleus(id: string): void {
+    const entry = this.entries.get(id);
+    if (!entry) return;
+
+    this.scene.remove(entry.mesh);
+    this.scene.remove(entry.glow);
+    entry.meshMat.dispose();
+    entry.glowMat.dispose();
+    this.entries.delete(id);
+    if (this._selectedId === id) this._selectedId = null;
+  }
+
+  updatePosition(id: string, position: [number, number, number]): void {
+    const entry = this.entries.get(id);
+    if (!entry) return;
+    entry.mesh.position.set(...position);
+    entry.glow.position.set(...position);
+  }
+
+  get selectedId(): string | null { return this._selectedId; }
+  set selectedId(id: string | null) { this._selectedId = id; }
+
+  /**
+  * Test a click (NDC coordinates) against all nucleus meshes.
+  * Returns the atom id of the closest hit, or null.
+  */
+  hitTest(ndcX: number, ndcY: number, camera: THREE.Camera): string | null {
+    this.mouse.set(ndcX, ndcY);
+    this.raycaster.setFromCamera(this.mouse, camera);
+
+    // Collect all core meshes for intersection test
+    const meshes: THREE.Mesh[] = [];
+    const idByMesh = new Map<THREE.Mesh, string>();
+    for (const entry of this.entries.values()) {
+      // Use a temporary invisible hit sphere at the same position
+      const hitMesh = new THREE.Mesh(this.hitGeo);
+      hitMesh.position.copy(entry.mesh.position);
+      hitMesh.updateMatrixWorld(true);
+      meshes.push(hitMesh);
+      idByMesh.set(hitMesh, entry.id);
+    }
+
+    const hits = this.raycaster.intersectObjects(meshes, false);
+    if (hits.length > 0) {
+      return idByMesh.get(hits[0].object as THREE.Mesh) ?? null;
+    }
+    return null;
   }
 
   update(time: number): void {
     const pulse = 1.0 + 0.05 * Math.sin(time * 2);
-    this.mesh.scale.setScalar(pulse);
-    this.glow.scale.setScalar(pulse * 1.8);
+    for (const entry of this.entries.values()) {
+      const isSelected = entry.id === this._selectedId;
+      const baseScale = isSelected ? 1.3 : 1.0;
+      entry.mesh.scale.setScalar(pulse * baseScale);
+      entry.glow.scale.setScalar(pulse * baseScale * 1.8);
+      // Highlight selected: brighter glow
+      entry.glowMat.opacity = isSelected ? 0.4 : 0.15;
+      entry.meshMat.color = isSelected
+        ? new THREE.Color(0xffffff)
+        : new THREE.Color(0xffffaa);
+    }
   }
 }

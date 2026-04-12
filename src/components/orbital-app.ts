@@ -2,8 +2,7 @@ import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import type { OrbitalParams } from '../types.js';
 import { DEFAULT_PARAMS } from '../config/params.js';
-import { estimateMaxPsi } from '../physics/particle-generator.js';
-import { ComputePipeline } from '../gpu/compute-pipeline.js';
+import { AtomManager } from '../physics/atom-manager.js';
 import { OrbitalPipeline } from '../gpu/orbital-pipeline.js';
 import { SceneManager } from '../renderer/scene-manager.js';
 import { PointCloud } from '../renderer/point-cloud.js';
@@ -20,11 +19,11 @@ export class OrbitalApp extends LitElement {
   @state() private webgpuAvailable = 'gpu' in navigator;
 
   private sceneManager!: SceneManager;
-  private compute!: ComputePipeline;
   private orbitalPipeline!: OrbitalPipeline;
   private pointCloud!: PointCloud;
   private nucleus!: Nucleus;
   private axesPlots!: AxesPlots;
+  private atomManager = new AtomManager();
   private lastTime = 0;
   private elapsedTime = 0;
   private generating = false;
@@ -111,11 +110,15 @@ export class OrbitalApp extends LitElement {
     this.sceneManager = new SceneManager(container);
     await this.sceneManager.init();
 
-    this.compute = new ComputePipeline(this.sceneManager.device);
     this.orbitalPipeline = new OrbitalPipeline(this.sceneManager.device);
     this.pointCloud = new PointCloud(this.sceneManager.scene, this.sceneManager.camera);
     this.nucleus = new Nucleus(this.sceneManager.scene);
     this.axesPlots = new AxesPlots(this.sceneManager.scene);
+
+    // Create the initial atom from default quantum numbers
+    const { n, l, m } = this.params;
+    const atom = this.atomManager.addAtom(n, l, m);
+    this.nucleus.addNucleus(atom.id);
 
     await this.regenerate();
     this.lastTime = performance.now();
@@ -150,6 +153,17 @@ export class OrbitalApp extends LitElement {
 
     this.params = next;
 
+    // Sync quantum numbers to the selected atom
+    const atom = this.atomManager.selectedAtom;
+    if (atom && (key === 'n' || key === 'l' || key === 'm')) {
+      atom.setQuantumNumbers(next.n, next.l, next.m);
+    }
+
+    // Global render params that affect generation → mark all atoms dirty
+    if (key === 'count' || key === 'threshold' || key === 'scale') {
+      this.atomManager.markAllDirty();
+    }
+
     if (REGENERATE_KEYS.has(key)) {
       this.regenerate();
     }
@@ -158,6 +172,10 @@ export class OrbitalApp extends LitElement {
   private onPresetChange = (e: CustomEvent<{ n: number; l: number; m: number }>) => {
     const { n, l, m } = e.detail;
     this.params = { ...this.params, n, l, m };
+
+    const atom = this.atomManager.selectedAtom;
+    if (atom) atom.setQuantumNumbers(n, l, m);
+
     this.regenerate();
   };
 
@@ -169,19 +187,30 @@ export class OrbitalApp extends LitElement {
     if (this.generating) return;
     this.generating = true;
 
-    const { n, l, m, count, threshold, scale } = this.params;
-    const rMax = scale * n * n;
-    const maxPsi = estimateMaxPsi(n, l, m, rMax);
-    const { positions, colors, actual } = await this.orbitalPipeline.generate(
-      n, l, m, count, scale, threshold, maxPsi,
+    const { count, threshold, scale } = this.params;
+
+    // Regenerate only dirty atoms, then merge all particle data
+    const { positions, colors, totalCount } = await this.atomManager.regenerateAll(
+      this.orbitalPipeline, count, scale, threshold,
     );
-    const usedCount = Math.max(actual, 1);
+    const usedCount = Math.max(totalCount, 1);
 
-    this.compute.createResources(usedCount);
-    this.compute.uploadParticles(positions);
+    // Extract stride-3 positions from stride-4 orbital output
+    const pos3 = new Float32Array(usedCount * 3);
+    for (let i = 0; i < usedCount; i++) {
+      pos3[i * 3 + 0] = positions[i * 4 + 0];
+      pos3[i * 3 + 1] = positions[i * 4 + 1];
+      pos3[i * 3 + 2] = positions[i * 4 + 2];
+    }
+
     this.pointCloud.create(usedCount, colors, this.params.pointSize);
+    this.pointCloud.setPositions(pos3);
 
-    this.axesPlots.update(n, l, m, scale);
+    // Show wave-function plots for the currently selected atom
+    const selected = this.atomManager.selectedAtom;
+    if (selected) {
+      this.axesPlots.update(selected.n, selected.l, selected.m, scale);
+    }
     this.axesPlots.showAxes = this.params.showAxes;
     this.axesPlots.showRadialPlot = this.params.showRadialPlot;
     this.axesPlots.showCombinedPlot = this.params.showCombinedPlot;
@@ -213,11 +242,7 @@ export class OrbitalApp extends LitElement {
     this.axesPlots.showThetaPlot = this.params.showThetaPlot;
     this.axesPlots.showPhiPlot = this.params.showPhiPlot;
 
-    const encoder = this.compute.dispatch(this.elapsedTime, dt, 0);
-    this.compute.submitAndReadback(encoder, (positions) => {
-      this.pointCloud.updatePositions(positions);
-    });
-
+    this.pointCloud.updateIfNeeded();
     this.nucleus.update(this.elapsedTime);
     this.sceneManager.render();
   };

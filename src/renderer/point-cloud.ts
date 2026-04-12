@@ -10,6 +10,7 @@ export class PointCloud {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private _pointSize = 4.0;
+  private _opacity = 0.75;
   private count = 0;
 
   private readonly _mat = new THREE.Matrix4();
@@ -66,6 +67,13 @@ export class PointCloud {
 
   set pointSize(size: number) {
     this._pointSize = size;
+  }
+
+  set opacity(value: number) {
+    this._opacity = value;
+    if (this.material) {
+      this.material.opacity = value;
+    }
   }
 
   dispose(): void {

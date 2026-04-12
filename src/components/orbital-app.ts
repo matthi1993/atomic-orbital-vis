@@ -9,6 +9,7 @@ import { SceneManager } from '../renderer/scene-manager.js';
 import { PointCloud } from '../renderer/point-cloud.js';
 import { Nucleus } from '../renderer/nucleus.js';
 import './control-panel.js';
+import './render-panel.js';
 
 const REGENERATE_KEYS = new Set(['n', 'l', 'm', 'count', 'threshold', 'scale']);
 
@@ -90,7 +91,12 @@ export class OrbitalApp extends LitElement {
       <control-panel
         .params=${this.params}
         @param-change=${this.onParamChange}
+        @preset-change=${this.onPresetChange}
       ></control-panel>
+      <render-panel
+        .params=${this.params}
+        @param-change=${this.onParamChange}
+      ></render-panel>
       <div class="info">Drag to rotate · Scroll to zoom · WebGPU Compute Shader</div>
     `;
   }
@@ -145,6 +151,12 @@ export class OrbitalApp extends LitElement {
     }
   };
 
+  private onPresetChange = (e: CustomEvent<{ n: number; l: number; m: number }>) => {
+    const { n, l, m } = e.detail;
+    this.params = { ...this.params, n, l, m };
+    this.regenerate();
+  };
+
   private async regenerate() {
     if (this.generating) return;
     this.generating = true;
@@ -173,6 +185,7 @@ export class OrbitalApp extends LitElement {
     this.elapsedTime += dt;
 
     this.pointCloud.pointSize = this.params.pointSize;
+    this.pointCloud.opacity = this.params.electronOpacity;
 
     const encoder = this.compute.dispatch(this.elapsedTime, dt, this.params.rotSpeed);
     this.compute.submitAndReadback(encoder, (positions) => {

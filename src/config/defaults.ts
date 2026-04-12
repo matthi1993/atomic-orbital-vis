@@ -9,4 +9,5 @@ export const DEFAULT_PARAMS: OrbitalParams = {
   scale: 10.0,
   pointSize: 4.0,
   rotSpeed: 0,
+  electronOpacity: 0.75,
 };

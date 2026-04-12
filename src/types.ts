@@ -7,6 +7,7 @@ export interface OrbitalParams {
   scale: number;
   pointSize: number;
   rotSpeed: number;
+  electronOpacity: number;
 }
 
 export interface GeneratedParticles {

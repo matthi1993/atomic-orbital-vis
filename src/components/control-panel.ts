@@ -1,6 +1,30 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { OrbitalParams } from '../types.js';
+import './collapsible-panel.js';
+
+interface OrbitalPreset {
+  label: string;
+  n: number;
+  l: number;
+  m: number;
+}
+
+const PRESETS: OrbitalPreset[] = [
+  { label: '1s', n: 1, l: 0, m: 0 },
+  { label: '2s', n: 2, l: 0, m: 0 },
+  { label: '2pz', n: 2, l: 1, m: 0 },
+  { label: '2px', n: 2, l: 1, m: 1 },
+  { label: '2py', n: 2, l: 1, m: -1 },
+  { label: '3s', n: 3, l: 0, m: 0 },
+  { label: '3pz', n: 3, l: 1, m: 0 },
+  { label: '3px', n: 3, l: 1, m: 1 },
+  { label: '3dz²', n: 3, l: 2, m: 0 },
+  { label: '3dxz', n: 3, l: 2, m: 1 },
+  { label: '3dxy', n: 3, l: 2, m: 2 },
+  { label: '4s', n: 4, l: 0, m: 0 },
+  { label: '4fz³', n: 4, l: 3, m: 0 },
+];
 
 @customElement('control-panel')
 export class ControlPanel extends LitElement {
@@ -12,25 +36,6 @@ export class ControlPanel extends LitElement {
       top: 16px;
       left: 16px;
       z-index: 10;
-    }
-
-    .panel {
-      background: rgba(10, 10, 30, 0.85);
-      backdrop-filter: blur(8px);
-      border: 1px solid rgba(100, 140, 255, 0.25);
-      border-radius: 12px;
-      padding: 20px;
-      width: 300px;
-      max-height: calc(100vh - 32px);
-      overflow-y: auto;
-      color: #eee;
-      font-family: 'Segoe UI', system-ui, sans-serif;
-    }
-
-    h2 {
-      font-size: 16px;
-      margin: 0 0 12px;
-      color: #8af;
     }
 
     .control-group {
@@ -62,6 +67,43 @@ export class ControlPanel extends LitElement {
       color: #8cf;
     }
 
+    .presets {
+      margin-bottom: 14px;
+    }
+
+    .presets label {
+      margin-bottom: 6px;
+    }
+
+    .preset-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .preset-btn {
+      background: rgba(100, 140, 255, 0.12);
+      border: 1px solid rgba(100, 140, 255, 0.3);
+      border-radius: 6px;
+      color: #adf;
+      font-size: 12px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .preset-btn:hover {
+      background: rgba(100, 140, 255, 0.25);
+      border-color: rgba(100, 140, 255, 0.5);
+    }
+
+    .preset-btn.active {
+      background: rgba(100, 140, 255, 0.35);
+      border-color: #58f;
+      color: #fff;
+    }
+
     .section {
       border-top: 1px solid rgba(100, 140, 255, 0.15);
       padding-top: 12px;
@@ -79,6 +121,16 @@ export class ControlPanel extends LitElement {
     this.dispatchEvent(
       new CustomEvent('param-change', {
         detail: { key, value },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private applyPreset(preset: OrbitalPreset) {
+    this.dispatchEvent(
+      new CustomEvent('preset-change', {
+        detail: { n: preset.n, l: preset.l, m: preset.m },
         bubbles: true,
         composed: true,
       }),
@@ -116,44 +168,31 @@ export class ControlPanel extends LitElement {
 
   render() {
     if (!this.params) return html``;
-    const { n, l, m, count, threshold, scale, pointSize, rotSpeed } = this.params;
+    const { n, l, m } = this.params;
 
     return html`
-      <div class="panel">
-        <h2>Atom Orbital Visualizer</h2>
-
-        ${this.slider('Quantum Number n (shell)', 'n', n, 1, 5, 1, String(n))}
-        ${this.slider('Quantum Number l (angular)', 'l', l, 0, n - 1, 1, String(l))}
-        ${this.slider('Quantum Number m (magnetic)', 'm', m, -l, l, 1, String(m))}
+      <collapsible-panel heading="Orbital Visualizer">
+        <div class="presets">
+          <label>Quick Presets</label>
+          <div class="preset-grid">
+            ${PRESETS.map(
+              (p) => html`
+                <button
+                  class="preset-btn ${p.n === n && p.l === l && p.m === m ? 'active' : ''}"
+                  @click=${() => this.applyPreset(p)}
+                >${p.label}</button>
+              `,
+            )}
+          </div>
+        </div>
 
         <div class="section">
-          <h3>Rendering</h3>
-          ${this.slider(
-            'Particle Count (×1000)', 'count',
-            count / 1000, 1, 500, 1,
-            `${count / 1000}k`,
-            (v) => v * 1000,
-          )}
-          ${this.slider(
-            'Density Threshold', 'threshold',
-            threshold * 100, 0, 100, 1,
-            threshold.toFixed(2),
-            (v) => v / 100,
-          )}
-          ${this.slider('Orbital Scale', 'scale', scale, 1, 30, 1, String(scale))}
-          ${this.slider(
-            'Point Size', 'pointSize',
-            pointSize, 1, 8, 0.5,
-            pointSize.toFixed(1),
-          )}
-          ${this.slider(
-            'Rotation Speed', 'rotSpeed',
-            rotSpeed * 100, 0, 100, 1,
-            rotSpeed.toFixed(2),
-            (v) => v / 100,
-          )}
+          <h3>Quantum Numbers</h3>
+          ${this.slider('n (shell)', 'n', n, 1, 5, 1, String(n))}
+          ${this.slider('l (angular)', 'l', l, 0, n - 1, 1, String(l))}
+          ${this.slider('m (magnetic)', 'm', m, -l, l, 1, String(m))}
         </div>
-      </div>
+      </collapsible-panel>
     `;
   }
 }

@@ -38,6 +38,7 @@ declare module 'three' {
     visible: boolean;
     children: Object3D[];
     renderOrder: number;
+    updateMatrixWorld(force?: boolean): void;
   }
 
   export class Group extends Object3D {}
@@ -117,6 +118,7 @@ declare module 'three' {
       depthWrite?: boolean;
       depthTest?: boolean;
     });
+    color: Color;
     opacity: number;
     blending: number;
     depthWrite: boolean;
@@ -190,6 +192,24 @@ declare module 'three' {
     setClearColor(color: number | Color, alpha?: number): void;
     render(scene: Scene, camera: Camera): void;
     init(): Promise<void>;
+  }
+
+  export class Vector2 {
+    constructor(x?: number, y?: number);
+    x: number; y: number;
+    set(x: number, y: number): this;
+  }
+
+  export interface Intersection {
+    distance: number;
+    point: Vector3;
+    object: Object3D;
+  }
+
+  export class Raycaster {
+    constructor();
+    setFromCamera(coords: Vector2, camera: Camera): void;
+    intersectObjects(objects: Object3D[], recursive?: boolean): Intersection[];
   }
 }
 

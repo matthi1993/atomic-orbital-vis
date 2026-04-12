@@ -1,23 +1,22 @@
 import { Atom } from './atom.js';
 import { OrbitalPipeline } from '../gpu/orbital-pipeline.js';
-import { estimateMaxPsi } from './particle-generator.js';
+import type { AtomGPUConfig } from '../gpu/orbital-pipeline.js';
+import { estimateMaxPsiMolecular } from './particle-generator.js';
 
 /**
  * Manages a collection of Atom instances and coordinates particle generation.
  *
  * Design notes for multi-atom support:
- * - Each atom generates particles independently via the shared GPU pipeline.
- * - Particles are merged into a single buffer (one draw call = good perf).
- * - Atom positions offset their particles in world space.
- * - Only dirty atoms are regenerated; clean atoms reuse cached data.
- *
- * Future: for true molecular orbital visualization, the GPU shader could
- * evaluate the combined probability density Σ|ψ_i|² (or |Σψ_i|² for
- * coherent superposition) from all atom configs in a single dispatch.
+ * - All atoms are fed to a single GPU dispatch that evaluates the coherent
+ *   molecular orbital ψ_total = Σ ψᵢ via importance-sampled rejection sampling.
+ * - Particles represent the combined |ψ_total|² probability density, producing
+ *   true bonding / antibonding orbital shapes.
+ * - Only regenerates when any atom's quantum numbers or a global param changes.
  */
 export class AtomManager {
   private atoms: Map<string, Atom> = new Map();
   private _selectedId: string | null = null;
+  private _molecularParticles: { positions: Float32Array; colors: Float32Array; totalCount: number } | null = null;
 
   addAtom(n = 1, l = 0, m = 0, position: [number, number, number] = [0, 0, 0]): Atom {
     const atom = new Atom(n, l, m, position);
@@ -54,69 +53,68 @@ export class AtomManager {
     return this.atoms.size;
   }
 
-  /**
-   * Regenerate particles for all dirty atoms, then return merged buffers.
-   * Only atoms whose quantum numbers changed since last generation are recomputed.
-   */
-  async regenerateAll(
-    pipeline: OrbitalPipeline,
-    particlesPerAtom: number,
-    scale: number,
-    threshold: number,
-  ): Promise<{ positions: Float32Array; colors: Float32Array; totalCount: number }> {
+  /** Whether any atom needs regeneration */
+  get anyDirty(): boolean {
     for (const atom of this.atoms.values()) {
-      if (!atom.dirty) continue;
-
-      const { n, l, m } = atom;
-      const rMax = scale * n * n;
-      const maxPsi = estimateMaxPsi(n, l, m, rMax);
-      const data = await pipeline.generate(n, l, m, particlesPerAtom, scale, threshold, maxPsi);
-      atom.setParticleData(data);
+      if (atom.dirty) return true;
     }
-
-    return this.getMergedParticles();
+    return false;
   }
 
   /**
-   * Merge all atom particle data into single position/color buffers.
-   * Each atom's particles are offset by its world-space position.
+   * Build the atom config array expected by the GPU pipeline.
    */
-  getMergedParticles(): { positions: Float32Array; colors: Float32Array; totalCount: number } {
-    let totalCount = 0;
-    for (const atom of this.atoms.values()) {
-      if (atom.particleData) totalCount += atom.particleData.actual;
+  private buildAtomConfigs(scale: number): AtomGPUConfig[] {
+    return this.all.map((atom) => ({
+      n: atom.n,
+      l: atom.l,
+      m: atom.m,
+      position: atom.position,
+      rMax: scale * atom.n * atom.n,
+    }));
+  }
+
+  /**
+   * Regenerate the molecular orbital via a single GPU dispatch.
+   * Evaluates ψ_total = Σ ψᵢ across all atoms and samples |ψ_total|².
+   */
+  async regenerateAll(
+    pipeline: OrbitalPipeline,
+    particleCount: number,
+    scale: number,
+    threshold: number,
+  ): Promise<{ positions: Float32Array; colors: Float32Array; totalCount: number }> {
+    if (!this.anyDirty && this._molecularParticles) {
+      return this._molecularParticles;
     }
 
-    const positions = new Float32Array(totalCount * 4);
-    const colors = new Float32Array(totalCount * 4);
-    let offset = 0;
+    const atomConfigs = this.buildAtomConfigs(scale);
 
+    // Estimate max |ψ_total|²·r² for rejection-sampling normalization
+    const cpuConfigs = this.all.map((a) => ({
+      n: a.n, l: a.l, m: a.m, position: a.position,
+    }));
+    const maxPsi = estimateMaxPsiMolecular(cpuConfigs, scale);
+
+    const data = await pipeline.generate(atomConfigs, particleCount, scale, threshold, maxPsi);
+
+    // Mark all atoms clean
     for (const atom of this.atoms.values()) {
-      const data = atom.particleData;
-      if (!data) continue;
-
-      const [ox, oy, oz] = atom.position;
-      for (let i = 0; i < data.actual; i++) {
-        const dst = (offset + i) * 4;
-        const src = i * 4;
-        positions[dst + 0] = data.positions[src + 0] + ox;
-        positions[dst + 1] = data.positions[src + 1] + oy;
-        positions[dst + 2] = data.positions[src + 2] + oz;
-        positions[dst + 3] = data.positions[src + 3];
-
-        colors[dst + 0] = data.colors[src + 0];
-        colors[dst + 1] = data.colors[src + 1];
-        colors[dst + 2] = data.colors[src + 2];
-        colors[dst + 3] = data.colors[src + 3];
-      }
-      offset += data.actual;
+      atom.setParticleData(data);
     }
 
-    return { positions, colors, totalCount };
+    this._molecularParticles = {
+      positions: data.positions,
+      colors: data.colors,
+      totalCount: data.actual,
+    };
+
+    return this._molecularParticles;
   }
 
   /** Mark all atoms dirty (e.g. when global render params like scale/threshold change). */
   markAllDirty(): void {
+    this._molecularParticles = null;
     for (const atom of this.atoms.values()) {
       atom.markDirty();
     }

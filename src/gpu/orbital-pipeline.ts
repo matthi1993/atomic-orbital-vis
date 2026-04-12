@@ -3,6 +3,15 @@ import type { GeneratedParticles } from '../types.js';
 
 const PARTICLE_STRIDE = 32; // pos(vec4) + color(vec4) = 8 floats × 4 bytes
 const UNIFORM_SIZE = 32;    // 8 floats × 4 bytes
+const ATOM_STRIDE = 32;     // 8 floats × 4 bytes per AtomConfig
+
+export interface AtomGPUConfig {
+  n: number;
+  l: number;
+  m: number;
+  position: [number, number, number];
+  rMax: number;
+}
 
 export class OrbitalPipeline {
   private device: GPUDevice;
@@ -10,9 +19,11 @@ export class OrbitalPipeline {
   private bindGroupLayout: GPUBindGroupLayout;
   private particleBuffer: GPUBuffer | null = null;
   private uniformBuffer: GPUBuffer | null = null;
+  private atomBuffer: GPUBuffer | null = null;
   private readbackBuffer: GPUBuffer | null = null;
   private bindGroup: GPUBindGroup | null = null;
   private currentCount = 0;
+  private currentAtomCount = 0;
   private uniformData = new Float32Array(8);
 
   constructor(device: GPUDevice) {
@@ -24,6 +35,7 @@ export class OrbitalPipeline {
       entries: [
         { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
         { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+        { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'read-only-storage' } },
       ],
     });
 
@@ -38,14 +50,23 @@ export class OrbitalPipeline {
     });
   }
 
-  private ensureBuffers(count: number): void {
-    if (this.currentCount === count && this.particleBuffer) return;
+  private ensureBuffers(count: number, atomCount: number): void {
+    const needRebuild =
+      this.currentCount !== count ||
+      this.currentAtomCount !== atomCount ||
+      !this.particleBuffer ||
+      !this.atomBuffer;
+
+    if (!needRebuild) return;
 
     this.particleBuffer?.destroy();
     this.readbackBuffer?.destroy();
+    this.atomBuffer?.destroy();
 
     this.currentCount = count;
+    this.currentAtomCount = atomCount;
     const bufferSize = count * PARTICLE_STRIDE;
+    const atomBufferSize = Math.max(atomCount, 1) * ATOM_STRIDE;
 
     this.particleBuffer = this.device.createBuffer({
       size: bufferSize,
@@ -57,31 +78,55 @@ export class OrbitalPipeline {
       usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
     });
 
+    this.atomBuffer = this.device.createBuffer({
+      size: atomBufferSize,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+
     this.bindGroup = this.device.createBindGroup({
       layout: this.bindGroupLayout,
       entries: [
         { binding: 0, resource: { buffer: this.particleBuffer } },
         { binding: 1, resource: { buffer: this.uniformBuffer! } },
+        { binding: 2, resource: { buffer: this.atomBuffer } },
       ],
     });
   }
 
   async generate(
-    n: number, l: number, m: number,
+    atomConfigs: AtomGPUConfig[],
     count: number, scale: number, threshold: number,
     maxPsi: number,
   ): Promise<GeneratedParticles> {
-    this.ensureBuffers(count);
+    const atomCount = atomConfigs.length;
+    this.ensureBuffers(count, atomCount);
 
-    this.uniformData[0] = n;
-    this.uniformData[1] = l;
-    this.uniformData[2] = m;
-    this.uniformData[3] = count;
-    this.uniformData[4] = scale;
-    this.uniformData[5] = threshold;
-    this.uniformData[6] = maxPsi;
-    this.uniformData[7] = (performance.now() * 1000) % 16777216;
+    // Write global uniforms
+    this.uniformData[0] = count;
+    this.uniformData[1] = scale;
+    this.uniformData[2] = threshold;
+    this.uniformData[3] = maxPsi;
+    this.uniformData[4] = (performance.now() * 1000) % 16777216;
+    this.uniformData[5] = atomCount;
+    this.uniformData[6] = 0; // pad
+    this.uniformData[7] = 0; // pad
     this.device.queue.writeBuffer(this.uniformBuffer!, 0, this.uniformData);
+
+    // Write atom configs: [n, l, m, pos_x, pos_y, pos_z, r_max, pad] per atom
+    const atomData = new Float32Array(atomCount * 8);
+    for (let i = 0; i < atomCount; i++) {
+      const a = atomConfigs[i];
+      const off = i * 8;
+      atomData[off + 0] = a.n;
+      atomData[off + 1] = a.l;
+      atomData[off + 2] = a.m;
+      atomData[off + 3] = a.position[0];
+      atomData[off + 4] = a.position[1];
+      atomData[off + 5] = a.position[2];
+      atomData[off + 6] = a.rMax;
+      atomData[off + 7] = 0; // pad
+    }
+    this.device.queue.writeBuffer(this.atomBuffer!, 0, atomData);
 
     const encoder = this.device.createCommandEncoder();
     const pass = encoder.beginComputePass();

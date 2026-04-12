@@ -9,7 +9,9 @@ declare module 'three' {
     setScalar(scalar: number): this;
     clone(): Vector3;
     copy(v: Vector3): this;
+    add(v: Vector3): this;
     multiplyScalar(scalar: number): this;
+    length(): number;
   }
 
   export class Color {
@@ -45,7 +47,17 @@ declare module 'three' {
 
   export class PerspectiveCamera extends Camera {
     constructor(fov?: number, aspect?: number, near?: number, far?: number);
+    fov: number;
     aspect: number;
+    updateProjectionMatrix(): void;
+  }
+
+  export class OrthographicCamera extends Camera {
+    constructor(left?: number, right?: number, top?: number, bottom?: number, near?: number, far?: number);
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
     updateProjectionMatrix(): void;
   }
 
@@ -162,6 +174,10 @@ declare module 'three' {
   export const AdditiveBlending: number;
   export const NormalBlending: number;
 
+  export namespace MathUtils {
+    function degToRad(degrees: number): number;
+  }
+
   export class WebGPURenderer {
     constructor(params?: { antialias?: boolean });
     domElement: HTMLCanvasElement;
@@ -175,10 +191,12 @@ declare module 'three' {
 }
 
 declare module 'three/examples/jsm/controls/OrbitControls.js' {
-  import { Camera } from 'three';
+  import { Camera, Vector3 } from 'three';
 
   export class OrbitControls {
     constructor(camera: Camera, domElement: HTMLElement);
+    object: Camera;
+    target: Vector3;
     enableDamping: boolean;
     dampingFactor: number;
     minDistance: number;

@@ -9,6 +9,7 @@ export interface OrbitalParams {
   rotSpeed: number;
   electronOpacity: number;
   opaqueMode: boolean;
+  orthographic: boolean;
   showAxes: boolean;
   showElectrons: boolean;
 }

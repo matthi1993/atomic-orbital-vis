@@ -62,12 +62,55 @@ export class RenderPanel extends LitElement {
     input[type='checkbox'] {
       accent-color: #58f;
     }
+
+    .axis-buttons {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .axis-buttons label {
+      font-size: 12px;
+      color: #aac;
+      margin-bottom: 4px;
+    }
+
+    .axis-btn {
+      flex: 1;
+      padding: 4px 0;
+      border: 1px solid #446;
+      border-radius: 4px;
+      background: #1a1a2e;
+      color: #aac;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .axis-btn:hover {
+      background: #2a2a4e;
+    }
+
+    .axis-btn.x { color: #f66; border-color: #f664; }
+    .axis-btn.y { color: #6f6; border-color: #6f64; }
+    .axis-btn.z { color: #68f; border-color: #68f4; }
   `;
 
   private emit(key: string, value: number | boolean) {
     this.dispatchEvent(
       new CustomEvent('param-change', {
         detail: { key, value },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private emitView(axis: string) {
+    this.dispatchEvent(
+      new CustomEvent('camera-view', {
+        detail: { axis },
         bubbles: true,
         composed: true,
       }),
@@ -112,6 +155,16 @@ export class RenderPanel extends LitElement {
         <div class="toggle-row">
           <input
             type="checkbox"
+            id="orthographic"
+            .checked=${p.orthographic}
+            @change=${(e: Event) =>
+              this.emit('orthographic', (e.target as HTMLInputElement).checked)}
+          />
+          <label for="orthographic">Orthographic Camera</label>
+        </div>
+        <div class="toggle-row">
+          <input
+            type="checkbox"
             id="opaqueMode"
             .checked=${p.opaqueMode}
             @change=${(e: Event) =>
@@ -138,6 +191,12 @@ export class RenderPanel extends LitElement {
               this.emit('showAxes', (e.target as HTMLInputElement).checked)}
           />
           <label for="showAxes">Axes &amp; Wave Plots</label>
+        </div>
+        <label>Camera View</label>
+        <div class="axis-buttons">
+          <button class="axis-btn x" @click=${() => this.emitView('x')}>X</button>
+          <button class="axis-btn y" @click=${() => this.emitView('y')}>Y</button>
+          <button class="axis-btn z" @click=${() => this.emitView('z')}>Z</button>
         </div>
       </collapsible-panel>
     `;

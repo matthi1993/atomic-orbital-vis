@@ -41,6 +41,7 @@ export class AxesPlots {
 
     this.buildAxes(axisLen);
     this.buildRadialPlot(n, l, rMax, axisLen);
+    //this.buildCombinedPlot(n, l, m, rMax, axisLen);
     this.buildAngularThetaPlot(l, m, axisLen);
     this.buildAngularPhiPlot(l, m, axisLen);
   }
@@ -65,12 +66,12 @@ export class AxesPlots {
       /* label sprite at positive end */
       const sprite = this.makeLabel(label, color);
       sprite.position.copy(dir.clone().multiplyScalar(extent * 1.1));
-      sprite.scale.setScalar(extent * 0.09);
+      sprite.scale.set(extent * 0.08, extent * 0.02, 1);
       this.group.add(sprite);
     }
   }
 
-  /* ── Radial wave-function R(r) along +X, height in Y ──────────── */
+  /* ── Radial wave-function R(r) along all 6 half-axes ──────────── */
 
   private buildRadialPlot(n: number, l: number, rMax: number, axisLen: number): void {
     const STEPS = 300;
@@ -87,8 +88,32 @@ export class AxesPlots {
 
     const plotH = axisLen * 0.35;
 
-    /* walk along the curve; every time the sign flips we flush
-       the current segment so positive → blue, negative → red.   */
+    /* plot along all 6 half-axes (±X, ±Y, ±Z) */
+    const dirs: { axis: THREE.Vector3; perp: THREE.Vector3 }[] = [
+      { axis: new THREE.Vector3(1, 0, 0), perp: new THREE.Vector3(0, 1, 0) },
+      { axis: new THREE.Vector3(-1, 0, 0), perp: new THREE.Vector3(0, 1, 0) },
+      { axis: new THREE.Vector3(0, 1, 0), perp: new THREE.Vector3(1, 0, 0) },
+      { axis: new THREE.Vector3(0, -1, 0), perp: new THREE.Vector3(1, 0, 0) },
+      { axis: new THREE.Vector3(0, 0, 1), perp: new THREE.Vector3(0, 1, 0) },
+      { axis: new THREE.Vector3(0, 0, -1), perp: new THREE.Vector3(0, 1, 0) },
+    ];
+
+    for (const { axis, perp } of dirs) {
+      this.buildRadialAlongDir(values, STEPS, rMax, axisLen, plotH, peak, axis, perp);
+    }
+
+    /* label – place near the +X plot */
+    const lbl = this.makeLabel('R(r)', 0x88bbff);
+    lbl.position.set(axisLen * 0.5, plotH * 1.15, 0);
+    lbl.scale.set(axisLen * 0.1, axisLen * 0.025, 1);
+    this.group.add(lbl);
+  }
+
+  /** Trace R(r) along a single axis half-line with height in a perpendicular direction. */
+  private buildRadialAlongDir(
+    values: number[], steps: number, rMax: number, axisLen: number,
+    plotH: number, peak: number, axis: THREE.Vector3, perp: THREE.Vector3,
+  ): void {
     let seg: THREE.Vector3[] = [];
     let sign = 0;
 
@@ -98,16 +123,15 @@ export class AxesPlots {
       }
     };
 
-    for (let i = 0; i <= STEPS; i++) {
-      const r = (i / STEPS) * rMax;
+    for (let i = 0; i <= steps; i++) {
+      const r = (i / steps) * rMax;
       const R = values[i];
       const s = R >= 0 ? 1 : -1;
-      const x = (r / rMax) * axisLen;
-      const y = (R / peak) * plotH;
-      const pt = new THREE.Vector3(x, y, 0);
+      const dist = (r / rMax) * axisLen;
+      const height = (R / peak) * plotH;
+      const pt = axis.clone().multiplyScalar(dist).add(perp.clone().multiplyScalar(height));
 
       if (i > 0 && s !== sign) {
-        /* include the crossing point in both segments */
         seg.push(pt);
         flush();
         seg = [pt];
@@ -117,10 +141,72 @@ export class AxesPlots {
       sign = s;
     }
     flush();
+  }
 
-    /* label */
-    const lbl = this.makeLabel('R(r)', 0x88bbff);
-    lbl.position.set(axisLen * 0.5, plotH * 1.15, 0);
+  /* ── Combined ψ = R(r)·Y(θ,φ) along each axis direction ───────── */
+
+  private buildCombinedPlot(n: number, l: number, m: number, rMax: number, axisLen: number): void {
+    const STEPS = 300;
+    const plotH = axisLen * 0.35;
+
+    /* each half-axis with its fixed (θ, φ) in spherical coords */
+    const dirs: { axis: THREE.Vector3; perp: THREE.Vector3; theta: number; phi: number }[] = [
+      { axis: new THREE.Vector3(1, 0, 0),  perp: new THREE.Vector3(0, 1, 0), theta: Math.PI / 2, phi: 0 },
+      { axis: new THREE.Vector3(-1, 0, 0), perp: new THREE.Vector3(0, 1, 0), theta: Math.PI / 2, phi: Math.PI },
+      { axis: new THREE.Vector3(0, 1, 0),  perp: new THREE.Vector3(1, 0, 0), theta: Math.PI / 2, phi: Math.PI / 2 },
+      { axis: new THREE.Vector3(0, -1, 0), perp: new THREE.Vector3(1, 0, 0), theta: Math.PI / 2, phi: 3 * Math.PI / 2 },
+      { axis: new THREE.Vector3(0, 0, 1),  perp: new THREE.Vector3(0, 1, 0), theta: 0,          phi: 0 },
+      { axis: new THREE.Vector3(0, 0, -1), perp: new THREE.Vector3(0, 1, 0), theta: Math.PI,     phi: 0 },
+    ];
+
+    /* find global peak across all directions for consistent scaling */
+    let peak = 0;
+    for (const { theta, phi } of dirs) {
+      const Y = sphericalHarmonic(l, m, theta, phi);
+      for (let i = 0; i <= STEPS; i++) {
+        const r = (i / STEPS) * rMax;
+        const R = radialWave(n, l, r);
+        peak = Math.max(peak, Math.abs(R * Y));
+      }
+    }
+    if (peak === 0) return;
+
+    for (const { axis, perp, theta, phi } of dirs) {
+      const Y = sphericalHarmonic(l, m, theta, phi);
+      if (Math.abs(Y) < 1e-12) continue;
+
+      let seg: THREE.Vector3[] = [];
+      let sign = 0;
+
+      const flush = () => {
+        if (seg.length >= 2) {
+          this.addLine(seg, sign >= 0 ? 0x44ddff : 0xff8844, 0.9, 2);
+        }
+      };
+
+      for (let i = 0; i <= STEPS; i++) {
+        const r = (i / STEPS) * rMax;
+        const R = radialWave(n, l, r);
+        const psi = R * Y;
+        const s = psi >= 0 ? 1 : -1;
+        const dist = (r / rMax) * axisLen;
+        const height = (psi / peak) * plotH;
+        const pt = axis.clone().multiplyScalar(dist).add(perp.clone().multiplyScalar(height));
+
+        if (i > 0 && s !== sign) {
+          seg.push(pt);
+          flush();
+          seg = [pt];
+        } else {
+          seg.push(pt);
+        }
+        sign = s;
+      }
+      flush();
+    }
+
+    const lbl = this.makeLabel('ψ(r)', 0x44ddff);
+    lbl.position.set(-axisLen * 0.5, plotH * 1.15, 0);
     lbl.scale.setScalar(axisLen * 0.07);
     this.group.add(lbl);
   }
@@ -147,7 +233,7 @@ export class AxesPlots {
 
     const lbl = this.makeLabel('Y(θ)', 0xaaddaa);
     lbl.position.set(plotR * 0.6, 0, plotR * 0.85);
-    lbl.scale.setScalar(axisLen * 0.07);
+    lbl.scale.set(axisLen * 0.1, axisLen * 0.025, 1);
     this.group.add(lbl);
   }
 
@@ -237,7 +323,7 @@ export class AxesPlots {
 
     const lbl = this.makeLabel('Y(φ)', 0xddaadd);
     lbl.position.set(plotR * 0.85, plotR * 0.6, 0);
-    lbl.scale.setScalar(axisLen * 0.07);
+    lbl.scale.set(axisLen * 0.1, axisLen * 0.025, 1);
     this.group.add(lbl);
   }
 
@@ -263,16 +349,17 @@ export class AxesPlots {
   }
 
   private makeLabel(text: string, color: number): THREE.Sprite {
-    const size = 128;
+    const w = 256;
+    const h = 64;
     const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext('2d')!;
     ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
-    ctx.font = 'bold 72px sans-serif';
+    ctx.font = 'bold 48px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, size / 2, size / 2);
+    ctx.fillText(text, w / 2, h / 2);
 
     const texture = new THREE.CanvasTexture(canvas);
     const mat = new THREE.SpriteMaterial({

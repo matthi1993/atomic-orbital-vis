@@ -8,7 +8,7 @@ export class PointCloud {
   private geometry: THREE.CircleGeometry | null = null;
   private material: THREE.MeshBasicMaterial | null = null;
   private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
+  private camera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
   private _pointSize = 4.0;
   private _opacity = 0.75;
   private _opaqueMode = false;
@@ -19,7 +19,7 @@ export class PointCloud {
   private readonly _pos = new THREE.Vector3();
   private readonly _scl = new THREE.Vector3();
 
-  constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
+  constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
     this.scene = scene;
     this.camera = camera;
   }
@@ -83,6 +83,10 @@ export class PointCloud {
   set visible(value: boolean) {
     this._visible = value;
     if (this.mesh) this.mesh.visible = value;
+  }
+
+  set activeCamera(cam: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
+    this.camera = cam;
   }
 
   set opaqueMode(value: boolean) {

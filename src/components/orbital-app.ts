@@ -98,6 +98,7 @@ export class OrbitalApp extends LitElement {
       <render-panel
         .params=${this.params}
         @param-change=${this.onParamChange}
+        @camera-view=${this.onCameraView}
       ></render-panel>
       <div class="info">Drag to rotate · Scroll to zoom · WebGPU Compute Shader</div>
     `;
@@ -160,6 +161,10 @@ export class OrbitalApp extends LitElement {
     this.regenerate();
   };
 
+  private onCameraView = (e: CustomEvent<{ axis: string }>) => {
+    this.sceneManager.lookAlongAxis(e.detail.axis as 'x' | 'y' | 'z');
+  };
+
   private async regenerate() {
     if (this.generating) return;
     this.generating = true;
@@ -194,6 +199,8 @@ export class OrbitalApp extends LitElement {
     this.pointCloud.opacity = this.params.electronOpacity;
     this.pointCloud.opaqueMode = this.params.opaqueMode;
     this.pointCloud.visible = this.params.showElectrons;
+    this.sceneManager.orthographic = this.params.orthographic;
+    this.pointCloud.activeCamera = this.sceneManager.camera;
     this.sceneManager.autoRotateSpeed = this.params.rotSpeed;
     this.axesPlots.visible = this.params.showAxes;
 

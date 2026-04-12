@@ -48,9 +48,8 @@ export class PointCloud {
   }
 
   set pointSize(size: number) {
-    if (this.material && this.material.size !== size) {
+    if (this.material) {
       this.material.size = size;
-      (this.material as any).needsUpdate = true;
     }
   }
 

@@ -105,7 +105,7 @@ export class ControlPanel extends LitElement {
             min=${min}
             max=${max}
             step=${step}
-            @input=${(e: Event) =>
+            @change=${(e: Event) =>
               this.emit(key, toParam(+(e.target as HTMLInputElement).value))}
           />
           <span class="val">${display}</span>

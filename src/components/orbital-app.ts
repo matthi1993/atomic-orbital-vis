@@ -2,8 +2,9 @@ import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import type { OrbitalParams } from '../types.js';
 import { DEFAULT_PARAMS } from '../config/defaults.js';
-import { generateParticles } from '../physics/particle-generator.js';
+import { estimateMaxPsi } from '../physics/particle-generator.js';
 import { ComputePipeline } from '../gpu/compute-pipeline.js';
+import { OrbitalPipeline } from '../gpu/orbital-pipeline.js';
 import { SceneManager } from '../renderer/scene-manager.js';
 import { PointCloud } from '../renderer/point-cloud.js';
 import { Nucleus } from '../renderer/nucleus.js';
@@ -18,6 +19,7 @@ export class OrbitalApp extends LitElement {
 
   private sceneManager!: SceneManager;
   private compute!: ComputePipeline;
+  private orbitalPipeline!: OrbitalPipeline;
   private pointCloud!: PointCloud;
   private nucleus!: Nucleus;
   private lastTime = 0;
@@ -101,6 +103,7 @@ export class OrbitalApp extends LitElement {
     await this.sceneManager.init();
 
     this.compute = new ComputePipeline(this.sceneManager.device);
+    this.orbitalPipeline = new OrbitalPipeline(this.sceneManager.device);
     this.pointCloud = new PointCloud(this.sceneManager.scene);
     this.nucleus = new Nucleus(this.sceneManager.scene);
 
@@ -147,7 +150,11 @@ export class OrbitalApp extends LitElement {
     this.generating = true;
 
     const { n, l, m, count, threshold, scale } = this.params;
-    const { positions, colors, actual } = generateParticles(n, l, m, count, scale, threshold);
+    const rMax = scale * n * n;
+    const maxPsi = estimateMaxPsi(n, l, m, rMax);
+    const { positions, colors, actual } = await this.orbitalPipeline.generate(
+      n, l, m, count, scale, threshold, maxPsi,
+    );
     const usedCount = Math.max(actual, 1);
 
     this.compute.createResources(usedCount);

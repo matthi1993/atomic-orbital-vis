@@ -1,6 +1,21 @@
 import { psiSquared, radialWave, sphericalHarmonic } from './quantum.js';
 import type { GeneratedParticles } from '../types.js';
 
+/** Estimate max |ψ|²·r² for rejection sampling normalization */
+export function estimateMaxPsi(
+  n: number, l: number, m: number, rMax: number, samples = 5000,
+): number {
+  let maxPsi = 0;
+  for (let i = 0; i < samples; i++) {
+    const r = Math.random() * rMax;
+    const theta = Math.random() * Math.PI;
+    const phi = Math.random() * 2 * Math.PI;
+    const p = psiSquared(n, l, m, r, theta, phi) * r * r;
+    if (p > maxPsi) maxPsi = p;
+  }
+  return maxPsi;
+}
+
 /** Generate particle positions via rejection sampling of |ψ|² */
 export function generateParticles(
   n: number, l: number, m: number,

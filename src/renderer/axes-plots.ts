@@ -14,22 +14,39 @@ import { radialWave, sphericalHarmonic } from '../physics/quantum.js';
  * matching the orbital point-cloud colouring convention.
  */
 export class AxesPlots {
-  private group = new THREE.Group();
+  private root = new THREE.Group();
+  private axesGroup = new THREE.Group();
+  private radialGroup = new THREE.Group();
+  private combinedGroup = new THREE.Group();
+  private thetaGroup = new THREE.Group();
+  private phiGroup = new THREE.Group();
   private disposables: { geometry?: THREE.BufferGeometry; material?: THREE.Material; texture?: THREE.Texture }[] = [];
 
+  /** Currently targeted group for addLine / addSprite helpers */
+  private _target!: THREE.Group;
+
   constructor(private scene: THREE.Scene) {
-    scene.add(this.group);
+    this.root.renderOrder = 999;
+    this.root.add(this.axesGroup, this.radialGroup, this.combinedGroup, this.thetaGroup, this.phiGroup);
+    scene.add(this.root);
   }
 
-  /* ── visibility toggle ─────────────────────────────────────────── */
+  /* ── visibility toggles ────────────────────────────────────────── */
 
-  set visible(v: boolean) {
-    this.group.visible = v;
-  }
+  set showAxes(v: boolean) { this.axesGroup.visible = v; }
+  get showAxes(): boolean { return this.axesGroup.visible; }
 
-  get visible(): boolean {
-    return this.group.visible;
-  }
+  set showRadialPlot(v: boolean) { this.radialGroup.visible = v; }
+  get showRadialPlot(): boolean { return this.radialGroup.visible; }
+
+  set showCombinedPlot(v: boolean) { this.combinedGroup.visible = v; }
+  get showCombinedPlot(): boolean { return this.combinedGroup.visible; }
+
+  set showThetaPlot(v: boolean) { this.thetaGroup.visible = v; }
+  get showThetaPlot(): boolean { return this.thetaGroup.visible; }
+
+  set showPhiPlot(v: boolean) { this.phiGroup.visible = v; }
+  get showPhiPlot(): boolean { return this.phiGroup.visible; }
 
   /* ── rebuild everything for the current quantum numbers ────────── */
 
@@ -39,10 +56,15 @@ export class AxesPlots {
     const rMax = scale * n * n;
     const axisLen = rMax * 0.8;
 
+    this._target = this.axesGroup;
     this.buildAxes(axisLen);
+    this._target = this.radialGroup;
     this.buildRadialPlot(n, l, rMax, axisLen);
-    //this.buildCombinedPlot(n, l, m, rMax, axisLen);
+    this._target = this.combinedGroup;
+    this.buildCombinedPlot(n, l, m, rMax, axisLen);
+    this._target = this.thetaGroup;
     this.buildAngularThetaPlot(l, m, axisLen);
+    this._target = this.phiGroup;
     this.buildAngularPhiPlot(l, m, axisLen);
   }
 
@@ -67,11 +89,11 @@ export class AxesPlots {
       const sprite = this.makeLabel(label, color);
       sprite.position.copy(dir.clone().multiplyScalar(extent * 1.1));
       sprite.scale.set(extent * 0.08, extent * 0.02, 1);
-      this.group.add(sprite);
+      this._target.add(sprite);
     }
   }
 
-  /* ── Radial wave-function R(r) along all 6 half-axes ──────────── */
+  /* ── Radial wave-function R(r) along +X (height in Y) ─────────── */
 
   private buildRadialPlot(n: number, l: number, rMax: number, axisLen: number): void {
     const STEPS = 300;
@@ -88,25 +110,17 @@ export class AxesPlots {
 
     const plotH = axisLen * 0.35;
 
-    /* plot along all 6 half-axes (±X, ±Y, ±Z) */
-    const dirs: { axis: THREE.Vector3; perp: THREE.Vector3 }[] = [
-      { axis: new THREE.Vector3(1, 0, 0), perp: new THREE.Vector3(0, 1, 0) },
-      { axis: new THREE.Vector3(-1, 0, 0), perp: new THREE.Vector3(0, 1, 0) },
-      { axis: new THREE.Vector3(0, 1, 0), perp: new THREE.Vector3(1, 0, 0) },
-      { axis: new THREE.Vector3(0, -1, 0), perp: new THREE.Vector3(1, 0, 0) },
-      { axis: new THREE.Vector3(0, 0, 1), perp: new THREE.Vector3(0, 1, 0) },
-      { axis: new THREE.Vector3(0, 0, -1), perp: new THREE.Vector3(0, 1, 0) },
-    ];
+    /* R(r) is the same in every direction – plot once along +X */
+    this.buildRadialAlongDir(
+      values, STEPS, rMax, axisLen, plotH, peak,
+      new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0),
+    );
 
-    for (const { axis, perp } of dirs) {
-      this.buildRadialAlongDir(values, STEPS, rMax, axisLen, plotH, peak, axis, perp);
-    }
-
-    /* label – place near the +X plot */
+    /* label on the +X axis at the end of the plot */
     const lbl = this.makeLabel('R(r)', 0x88bbff);
-    lbl.position.set(axisLen * 0.5, plotH * 1.15, 0);
+    lbl.position.set(axisLen * 1.05, 0, 0);
     lbl.scale.set(axisLen * 0.1, axisLen * 0.025, 1);
-    this.group.add(lbl);
+    this._target.add(lbl);
   }
 
   /** Trace R(r) along a single axis half-line with height in a perpendicular direction. */
@@ -205,10 +219,11 @@ export class AxesPlots {
       flush();
     }
 
+    /* label on the −X axis at the end of the plot */
     const lbl = this.makeLabel('ψ(r)', 0x44ddff);
-    lbl.position.set(-axisLen * 0.5, plotH * 1.15, 0);
-    lbl.scale.setScalar(axisLen * 0.07);
-    this.group.add(lbl);
+    lbl.position.set(-axisLen * 1.05, 0, 0);
+    lbl.scale.set(axisLen * 0.1, axisLen * 0.025, 1);
+    this._target.add(lbl);
   }
 
   /* ── Angular θ-cross-section (XZ plane, containing polar axis Z) ── */
@@ -231,10 +246,11 @@ export class AxesPlots {
     /* left half:  φ = π, θ ∈ [0, π] (mirrored to −x) */
     this.polarHalf(STEPS, plotR, peak, (theta) => sphericalHarmonic(l, m, theta, Math.PI), true);
 
+    /* label on the +Z axis at the edge of the polar plot */
     const lbl = this.makeLabel('Y(θ)', 0xaaddaa);
-    lbl.position.set(plotR * 0.6, 0, plotR * 0.85);
+    lbl.position.set(0, 0, plotR * 1.15);
     lbl.scale.set(axisLen * 0.1, axisLen * 0.025, 1);
-    this.group.add(lbl);
+    this._target.add(lbl);
   }
 
   /** Trace one half of the θ polar diagram in the XZ plane. */
@@ -321,10 +337,11 @@ export class AxesPlots {
     }
     flush();
 
+    /* label on the +Y axis at the edge of the polar plot */
     const lbl = this.makeLabel('Y(φ)', 0xddaadd);
-    lbl.position.set(plotR * 0.85, plotR * 0.6, 0);
+    lbl.position.set(0, plotR * 1.15, 0);
     lbl.scale.set(axisLen * 0.1, axisLen * 0.025, 1);
-    this.group.add(lbl);
+    this._target.add(lbl);
   }
 
   /* ── helpers ──────────────────────────────────────────────────── */
@@ -341,10 +358,12 @@ export class AxesPlots {
       transparent: true,
       opacity,
       linewidth,
-      depthTest: true,
+      depthTest: false,
+      depthWrite: false,
     });
     const line = new THREE.Line(geo, mat);
-    this.group.add(line);
+    line.renderOrder = 999;
+    this._target.add(line);
     this.disposables.push({ geometry: geo, material: mat });
   }
 
@@ -366,10 +385,18 @@ export class AxesPlots {
       map: texture,
       transparent: true,
       depthTest: false,
+      depthWrite: false,
     });
     const sprite = new THREE.Sprite(mat);
+    sprite.renderOrder = 999;
     this.disposables.push({ material: mat, texture });
     return sprite;
+  }
+
+  private clearGroup(group: THREE.Group): void {
+    while (group.children.length) {
+      group.remove(group.children[0]);
+    }
   }
 
   private clear(): void {
@@ -379,13 +406,15 @@ export class AxesPlots {
       d.texture?.dispose();
     }
     this.disposables.length = 0;
-    while (this.group.children.length) {
-      this.group.remove(this.group.children[0]);
-    }
+    this.clearGroup(this.axesGroup);
+    this.clearGroup(this.radialGroup);
+    this.clearGroup(this.combinedGroup);
+    this.clearGroup(this.thetaGroup);
+    this.clearGroup(this.phiGroup);
   }
 
   dispose(): void {
     this.clear();
-    this.scene.remove(this.group);
+    this.scene.remove(this.root);
   }
 }

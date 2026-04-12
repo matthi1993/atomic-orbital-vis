@@ -37,6 +37,7 @@ declare module 'three' {
     quaternion: Quaternion;
     visible: boolean;
     children: Object3D[];
+    renderOrder: number;
   }
 
   export class Group extends Object3D {}
@@ -138,6 +139,7 @@ declare module 'three' {
       opacity?: number;
       linewidth?: number;
       depthTest?: boolean;
+      depthWrite?: boolean;
     });
   }
 
@@ -146,6 +148,7 @@ declare module 'three' {
       map?: Texture;
       transparent?: boolean;
       depthTest?: boolean;
+      depthWrite?: boolean;
     });
   }
 

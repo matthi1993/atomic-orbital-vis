@@ -137,7 +137,7 @@ export class OrbitalApp extends LitElement {
     }
   };
 
-  private onParamChange = (e: CustomEvent<{ key: string; value: number | boolean }>) => {
+  private onParamChange = (e: CustomEvent<{ key: string; value: number | boolean | string }>) => {
     const { key, value } = e.detail;
     const next = { ...this.params, [key]: value };
 
@@ -182,7 +182,11 @@ export class OrbitalApp extends LitElement {
     this.pointCloud.create(usedCount, colors, this.params.pointSize);
 
     this.axesPlots.update(n, l, m, scale);
-    this.axesPlots.visible = this.params.showAxes;
+    this.axesPlots.showAxes = this.params.showAxes;
+    this.axesPlots.showRadialPlot = this.params.showRadialPlot;
+    this.axesPlots.showCombinedPlot = this.params.showCombinedPlot;
+    this.axesPlots.showThetaPlot = this.params.showThetaPlot;
+    this.axesPlots.showPhiPlot = this.params.showPhiPlot;
 
     this.generating = false;
   }
@@ -199,10 +203,15 @@ export class OrbitalApp extends LitElement {
     this.pointCloud.opacity = this.params.electronOpacity;
     this.pointCloud.opaqueMode = this.params.opaqueMode;
     this.pointCloud.visible = this.params.showElectrons;
+    this.pointCloud.cutPlane = this.params.cutPlane;
     this.sceneManager.orthographic = this.params.orthographic;
     this.pointCloud.activeCamera = this.sceneManager.camera;
     this.sceneManager.autoRotateSpeed = this.params.rotSpeed;
-    this.axesPlots.visible = this.params.showAxes;
+    this.axesPlots.showAxes = this.params.showAxes;
+    this.axesPlots.showRadialPlot = this.params.showRadialPlot;
+    this.axesPlots.showCombinedPlot = this.params.showCombinedPlot;
+    this.axesPlots.showThetaPlot = this.params.showThetaPlot;
+    this.axesPlots.showPhiPlot = this.params.showPhiPlot;
 
     const encoder = this.compute.dispatch(this.elapsedTime, dt, 0);
     this.compute.submitAndReadback(encoder, (positions) => {

@@ -13,6 +13,7 @@ export class PointCloud {
   private _opacity = 0.75;
   private _opaqueMode = false;
   private _visible = true;
+  private _cutPlane: 'none' | 'x' | 'y' | 'z' = 'none';
   private count = 0;
 
   private readonly _mat = new THREE.Matrix4();
@@ -61,9 +62,21 @@ export class PointCloud {
     const s = this._pointSize * SIZE_SCALE;
     this._scl.set(s, s, s);
 
+    const cut = this._cutPlane;
+    const zeroScale = new THREE.Vector3(0, 0, 0);
+
     for (let i = 0; i < this.count; i++) {
-      this._pos.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
-      this._mat.compose(this._pos, q, this._scl);
+      const px = positions[i * 3];
+      const py = positions[i * 3 + 1];
+      const pz = positions[i * 3 + 2];
+      this._pos.set(px, py, pz);
+
+      const clipped =
+        (cut === 'x' && px > 0) ||
+        (cut === 'y' && py > 0) ||
+        (cut === 'z' && pz > 0);
+
+      this._mat.compose(this._pos, q, clipped ? zeroScale : this._scl);
       this.mesh.setMatrixAt(i, this._mat);
     }
     this.mesh.instanceMatrix.needsUpdate = true;
@@ -104,6 +117,10 @@ export class PointCloud {
       }
       this.material.needsUpdate = true;
     }
+  }
+
+  set cutPlane(axis: 'none' | 'x' | 'y' | 'z') {
+    this._cutPlane = axis;
   }
 
   dispose(): void {

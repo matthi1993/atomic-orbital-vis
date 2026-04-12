@@ -88,7 +88,12 @@ export const DEFAULT_PARAMS: OrbitalParams = {
   rotSpeed: 0,
   electronOpacity: 0.75,
   opaqueMode: true,
-  orthographic: false,
+  orthographic: true,
   showAxes: true,
+  showRadialPlot: false,
+  showCombinedPlot: false,
+  showThetaPlot: true,
+  showPhiPlot: true,
   showElectrons: true,
+  cutPlane: 'none',
 };

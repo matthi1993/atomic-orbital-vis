@@ -9,6 +9,8 @@ export interface OrbitalParams {
   rotSpeed: number;
   electronOpacity: number;
   opaqueMode: boolean;
+  showAxes: boolean;
+  showElectrons: boolean;
 }
 
 export interface GeneratedParticles {

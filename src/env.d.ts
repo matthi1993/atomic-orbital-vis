@@ -7,6 +7,9 @@ declare module 'three' {
     x: number; y: number; z: number;
     set(x: number, y: number, z: number): this;
     setScalar(scalar: number): this;
+    clone(): Vector3;
+    copy(v: Vector3): this;
+    multiplyScalar(scalar: number): this;
   }
 
   export class Color {
@@ -30,7 +33,11 @@ declare module 'three' {
     scale: Vector3;
     position: Vector3;
     quaternion: Quaternion;
+    visible: boolean;
+    children: Object3D[];
   }
+
+  export class Group extends Object3D {}
 
   export class Scene extends Object3D {}
 
@@ -50,12 +57,21 @@ declare module 'three' {
 
   export class BufferGeometry {
     setAttribute(name: string, attribute: BufferAttribute): this;
+    setFromPoints(points: Vector3[]): this;
     attributes: Record<string, BufferAttribute>;
     dispose(): void;
   }
 
   export class Material {
     dispose(): void;
+  }
+
+  export class Texture {
+    dispose(): void;
+  }
+
+  export class CanvasTexture extends Texture {
+    constructor(canvas: HTMLCanvasElement);
   }
 
   export class PointsMaterial extends Material {
@@ -97,6 +113,32 @@ declare module 'three' {
 
   export class Mesh extends Object3D {
     constructor(geometry?: BufferGeometry, material?: Material);
+  }
+
+  export class Line extends Object3D {
+    constructor(geometry?: BufferGeometry, material?: Material);
+  }
+
+  export class LineBasicMaterial extends Material {
+    constructor(params?: {
+      color?: number | string;
+      transparent?: boolean;
+      opacity?: number;
+      linewidth?: number;
+      depthTest?: boolean;
+    });
+  }
+
+  export class SpriteMaterial extends Material {
+    constructor(params?: {
+      map?: Texture;
+      transparent?: boolean;
+      depthTest?: boolean;
+    });
+  }
+
+  export class Sprite extends Object3D {
+    constructor(material?: SpriteMaterial);
   }
 
   export class CircleGeometry extends BufferGeometry {

@@ -8,6 +8,7 @@ import { OrbitalPipeline } from '../gpu/orbital-pipeline.js';
 import { SceneManager } from '../renderer/scene-manager.js';
 import { PointCloud } from '../renderer/point-cloud.js';
 import { Nucleus } from '../renderer/nucleus.js';
+import { AxesPlots } from '../renderer/axes-plots.js';
 import './control-panel.js';
 import './render-panel.js';
 
@@ -23,6 +24,7 @@ export class OrbitalApp extends LitElement {
   private orbitalPipeline!: OrbitalPipeline;
   private pointCloud!: PointCloud;
   private nucleus!: Nucleus;
+  private axesPlots!: AxesPlots;
   private lastTime = 0;
   private elapsedTime = 0;
   private generating = false;
@@ -112,6 +114,7 @@ export class OrbitalApp extends LitElement {
     this.orbitalPipeline = new OrbitalPipeline(this.sceneManager.device);
     this.pointCloud = new PointCloud(this.sceneManager.scene, this.sceneManager.camera);
     this.nucleus = new Nucleus(this.sceneManager.scene);
+    this.axesPlots = new AxesPlots(this.sceneManager.scene);
 
     await this.regenerate();
     this.lastTime = performance.now();
@@ -173,6 +176,9 @@ export class OrbitalApp extends LitElement {
     this.compute.uploadParticles(positions);
     this.pointCloud.create(usedCount, colors, this.params.pointSize);
 
+    this.axesPlots.update(n, l, m, scale);
+    this.axesPlots.visible = this.params.showAxes;
+
     this.generating = false;
   }
 
@@ -187,7 +193,9 @@ export class OrbitalApp extends LitElement {
     this.pointCloud.pointSize = this.params.pointSize;
     this.pointCloud.opacity = this.params.electronOpacity;
     this.pointCloud.opaqueMode = this.params.opaqueMode;
+    this.pointCloud.visible = this.params.showElectrons;
     this.sceneManager.autoRotateSpeed = this.params.rotSpeed;
+    this.axesPlots.visible = this.params.showAxes;
 
     const encoder = this.compute.dispatch(this.elapsedTime, dt, 0);
     this.compute.submitAndReadback(encoder, (positions) => {

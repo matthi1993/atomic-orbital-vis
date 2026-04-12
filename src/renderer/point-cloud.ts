@@ -12,6 +12,7 @@ export class PointCloud {
   private _pointSize = 4.0;
   private _opacity = 0.75;
   private _opaqueMode = false;
+  private _visible = true;
   private count = 0;
 
   private readonly _mat = new THREE.Matrix4();
@@ -77,6 +78,11 @@ export class PointCloud {
     if (this.material) {
       this.material.opacity = value;
     }
+  }
+
+  set visible(value: boolean) {
+    this._visible = value;
+    if (this.mesh) this.mesh.visible = value;
   }
 
   set opaqueMode(value: boolean) {

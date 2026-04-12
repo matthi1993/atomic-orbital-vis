@@ -119,6 +119,26 @@ export class RenderPanel extends LitElement {
           />
           <label for="opaqueMode">Opaque Rendering</label>
         </div>
+        <div class="toggle-row">
+          <input
+            type="checkbox"
+            id="showElectrons"
+            .checked=${p.showElectrons}
+            @change=${(e: Event) =>
+              this.emit('showElectrons', (e.target as HTMLInputElement).checked)}
+          />
+          <label for="showElectrons">Electron Cloud</label>
+        </div>
+        <div class="toggle-row">
+          <input
+            type="checkbox"
+            id="showAxes"
+            .checked=${p.showAxes}
+            @change=${(e: Event) =>
+              this.emit('showAxes', (e.target as HTMLInputElement).checked)}
+          />
+          <label for="showAxes">Axes &amp; Wave Plots</label>
+        </div>
       </collapsible-panel>
     `;
   }

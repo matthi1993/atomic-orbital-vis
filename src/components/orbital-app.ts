@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import { DEFAULT_PARAMS, type OrbitalParams } from '../types.js';
+import type { OrbitalParams } from '../types.js';
+import { DEFAULT_PARAMS } from '../config/defaults.js';
 import { generateParticles } from '../physics/particle-generator.js';
 import { ComputePipeline } from '../gpu/compute-pipeline.js';
 import { SceneManager } from '../renderer/scene-manager.js';

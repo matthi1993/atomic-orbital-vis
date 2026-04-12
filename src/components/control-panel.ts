@@ -130,7 +130,7 @@ export class ControlPanel extends LitElement {
           <h3>Rendering</h3>
           ${this.slider(
             'Particle Count (×1000)', 'count',
-            count / 1000, 10, 500, 10,
+            count / 1000, 1, 500, 1,
             `${count / 1000}k`,
             (v) => v * 1000,
           )}

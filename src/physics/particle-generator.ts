@@ -6,6 +6,7 @@ export interface AtomConfig {
   l: number;
   m: number;
   position: [number, number, number];
+  weight?: number;
 }
 
 /** Estimate max |ψ|²·r² for single-atom rejection sampling normalization */
@@ -67,6 +68,52 @@ export function estimateMaxPsiMolecular(
     }
 
     const val = psiTotal * psiTotal * r * r;
+    if (val > maxVal) maxVal = val;
+  }
+
+  return maxVal;
+}
+
+/**
+ * Estimate max of Σ wᵢ|ψᵢ|² · r² for incoherent (electron density) mode.
+ * Each orbital contributes independently, weighted by its electron count.
+ */
+export function estimateMaxPsiIncoherent(
+  atomConfigs: AtomConfig[],
+  scale: number,
+  samples = 20000,
+): number {
+  let maxVal = 0;
+  const numAtoms = atomConfigs.length;
+
+  for (let s = 0; s < samples; s++) {
+    const refIdx = Math.floor(Math.random() * numAtoms);
+    const ref = atomConfigs[refIdx];
+    const rMax = scale * ref.n * ref.n;
+
+    const r = Math.random() * rMax;
+    const cosTheta = 2 * Math.random() - 1;
+    const phi = Math.random() * 2 * Math.PI;
+    const sinTheta = Math.sqrt(1 - cosTheta * cosTheta);
+
+    const x = ref.position[0] + r * sinTheta * Math.cos(phi);
+    const y = ref.position[1] + r * sinTheta * Math.sin(phi);
+    const z = ref.position[2] + r * cosTheta;
+
+    let density = 0;
+    for (const atom of atomConfigs) {
+      const dx = x - atom.position[0];
+      const dy = y - atom.position[1];
+      const dz = z - atom.position[2];
+      const ra = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (ra < 1e-10) continue;
+      const theta_a = Math.acos(Math.max(-1, Math.min(1, dz / ra)));
+      const phi_a = Math.atan2(dy, dx);
+      const psi_a = psi(atom.n, atom.l, atom.m, ra, theta_a, phi_a);
+      density += (atom.weight ?? 1) * psi_a * psi_a;
+    }
+
+    const val = density * r * r;
     if (val > maxVal) maxVal = val;
   }
 

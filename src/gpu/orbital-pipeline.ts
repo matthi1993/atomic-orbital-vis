@@ -11,6 +11,7 @@ export interface AtomGPUConfig {
   m: number;
   position: [number, number, number];
   rMax: number;
+  maxPsi: number;
 }
 
 export class OrbitalPipeline {
@@ -97,6 +98,7 @@ export class OrbitalPipeline {
     atomConfigs: AtomGPUConfig[],
     count: number, scale: number, threshold: number,
     maxPsi: number,
+    mode = 0,
   ): Promise<GeneratedParticles> {
     const atomCount = atomConfigs.length;
     this.ensureBuffers(count, atomCount);
@@ -108,7 +110,7 @@ export class OrbitalPipeline {
     this.uniformData[3] = maxPsi;
     this.uniformData[4] = (performance.now() * 1000) % 16777216;
     this.uniformData[5] = atomCount;
-    this.uniformData[6] = 0; // pad
+    this.uniformData[6] = mode; // 0 = incoherent, 1 = coherent
     this.uniformData[7] = 0; // pad
     this.device.queue.writeBuffer(this.uniformBuffer!, 0, this.uniformData);
 
@@ -124,7 +126,7 @@ export class OrbitalPipeline {
       atomData[off + 4] = a.position[1];
       atomData[off + 5] = a.position[2];
       atomData[off + 6] = a.rMax;
-      atomData[off + 7] = 0; // pad
+      atomData[off + 7] = a.maxPsi; // per-orbital max |ψ|²·r²
     }
     this.device.queue.writeBuffer(this.atomBuffer!, 0, atomData);
 

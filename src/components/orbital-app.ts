@@ -186,25 +186,6 @@ export class OrbitalApp extends LitElement {
     if (!atom) return;
 
     switch (key) {
-      case 'n': {
-        let newL = atom.l;
-        let newM = atom.m;
-        if (newL >= value) newL = value - 1;
-        if (newM < -newL) newM = -newL;
-        if (newM > newL) newM = newL;
-        atom.setQuantumNumbers(value, newL, newM);
-        break;
-      }
-      case 'l': {
-        let newM = atom.m;
-        if (newM < -value) newM = -value;
-        if (newM > value) newM = value;
-        atom.setQuantumNumbers(atom.n, value, newM);
-        break;
-      }
-      case 'm':
-        atom.setQuantumNumbers(atom.n, atom.l, value);
-        break;
       case 'protons':
         atom.setProtons(value);
         break;
@@ -246,9 +227,8 @@ export class OrbitalApp extends LitElement {
     const atom = this.atomManager.getAtom(atomId);
     if (!atom) return;
 
-    atom.setQuantumNumbers(preset.n, preset.l, preset.m);
     atom.setProtons(preset.Z);
-    atom.setElectrons(preset.e);
+    atom.setElectrons(preset.e); // n/l/m auto-derived from electron config
 
     this.atomManager.markAllDirty();
     this.regenerate();

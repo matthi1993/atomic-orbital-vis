@@ -1,11 +1,15 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import type { Atom } from '../physics/atom.js';
+import { configurationString } from '../physics/electron-config.js';
+import { getElement, CATEGORY_COLORS } from '../config/elements.js';
+import type { ElementData } from '../config/elements.js';
 import './collapsible-panel.js';
+import './periodic-table-modal.js';
 
 export interface AtomEditorChange {
   atomId: string;
-  key: 'n' | 'l' | 'm' | 'protons' | 'electrons' | 'posX' | 'posY' | 'posZ';
+  key: 'protons' | 'electrons' | 'posX' | 'posY' | 'posZ';
   value: number;
 }
 
@@ -25,23 +29,11 @@ export interface ElementPreset {
   m: number;        // magnetic quantum number (default orientation)
 }
 
-const ELEMENT_PRESETS: ElementPreset[] = [
-  { symbol: 'H',  name: 'Hydrogen',  Z: 1,  e: 1,  n: 1, l: 0, m: 0 },
-  { symbol: 'He', name: 'Helium',    Z: 2,  e: 2,  n: 1, l: 0, m: 0 },
-  { symbol: 'Li', name: 'Lithium',   Z: 3,  e: 3,  n: 2, l: 0, m: 0 },
-  { symbol: 'Be', name: 'Beryllium', Z: 4,  e: 4,  n: 2, l: 0, m: 0 },
-  { symbol: 'B',  name: 'Boron',     Z: 5,  e: 5,  n: 2, l: 1, m: 0 },
-  { symbol: 'C',  name: 'Carbon',    Z: 6,  e: 6,  n: 2, l: 1, m: 0 },
-  { symbol: 'N',  name: 'Nitrogen',  Z: 7,  e: 7,  n: 2, l: 1, m: 0 },
-  { symbol: 'O',  name: 'Oxygen',    Z: 8,  e: 8,  n: 2, l: 1, m: 0 },
-  { symbol: 'F',  name: 'Fluorine',  Z: 9,  e: 9,  n: 2, l: 1, m: 0 },
-  { symbol: 'Ne', name: 'Neon',      Z: 10, e: 10, n: 2, l: 1, m: 0 },
-];
-
 @customElement('atom-editor')
 export class AtomEditor extends LitElement {
   @property({ attribute: false }) atom: Atom | null = null;
   @property({ type: Number }) version = 0;
+  @state() private periodicTableOpen = false;
 
   static styles = css`
     :host {
@@ -126,42 +118,71 @@ export class AtomEditor extends LitElement {
       color: #aac;
     }
 
-    .preset-grid {
+    .element-btn {
+      width: 100%;
       display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .preset-btn {
-      background: rgba(100, 140, 255, 0.12);
+      align-items: center;
+      gap: 10px;
+      background: rgba(100, 140, 255, 0.10);
       border: 1px solid rgba(100, 140, 255, 0.3);
-      border-radius: 6px;
-      color: #adf;
-      font-size: 12px;
-      padding: 4px 10px;
+      border-radius: 8px;
+      color: #dde;
+      padding: 8px 12px;
       cursor: pointer;
       font-family: 'Segoe UI', system-ui, sans-serif;
       transition: background 0.15s, border-color 0.15s;
-      min-width: 32px;
-      text-align: center;
     }
 
-    .preset-btn:hover {
-      background: rgba(100, 140, 255, 0.25);
+    .element-btn:hover {
+      background: rgba(100, 140, 255, 0.22);
       border-color: rgba(100, 140, 255, 0.5);
     }
 
-    .preset-btn.active {
-      background: rgba(100, 140, 255, 0.35);
-      border-color: #58f;
+    .element-btn .el-symbol {
+      font-size: 22px;
+      font-weight: 700;
+      min-width: 36px;
+      text-align: center;
+      padding: 2px 6px;
+      border-radius: 5px;
+      line-height: 1.2;
       color: #fff;
     }
 
-    .preset-btn .z-num {
-      font-size: 9px;
-      opacity: 0.6;
-      display: block;
-      line-height: 1;
+    .element-btn .el-info {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.3;
+    }
+
+    .element-btn .el-name {
+      font-size: 13px;
+      color: #cce;
+    }
+
+    .element-btn .el-z {
+      font-size: 10px;
+      color: #889;
+    }
+
+    .element-btn .el-arrow {
+      margin-left: auto;
+      font-size: 14px;
+      color: #668;
+    }
+
+    .electron-config {
+      grid-column: 1 / -1;
+      font-size: 13px;
+      color: #adf;
+      text-align: center;
+      padding: 8px 4px;
+      background: rgba(100, 140, 255, 0.08);
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      line-height: 1.6;
+      word-break: break-word;
     }
   `;
 
@@ -187,6 +208,18 @@ export class AtomEditor extends LitElement {
     );
   }
 
+  private onElementSelect(e: CustomEvent<ElementData>) {
+    const el = e.detail;
+    this.applyPreset({
+      symbol: el.symbol,
+      name: el.name,
+      Z: el.Z,
+      e: el.Z,  // neutral atom
+      n: 0, l: 0, m: 0,  // auto-derived from electron count
+    });
+    this.periodicTableOpen = false;
+  }
+
   private onSlider(key: AtomEditorChange['key'], e: Event) {
     this.emit(key, +(e.target as HTMLInputElement).value);
   }
@@ -200,49 +233,37 @@ export class AtomEditor extends LitElement {
     if (!atom) return nothing;
 
     const { n, l, m } = atom;
+    const currentElement = getElement(atom.protons);
+    const elBg = currentElement ? CATEGORY_COLORS[currentElement.category] : 'rgba(100,140,255,0.2)';
 
     return html`
+      <periodic-table-modal
+        .open=${this.periodicTableOpen}
+        .selectedZ=${atom.protons}
+        @element-select=${this.onElementSelect}
+        @modal-close=${() => { this.periodicTableOpen = false; }}
+      ></periodic-table-modal>
+
       <collapsible-panel heading="Atom: ${atom.id}" .collapsed=${false}>
         <div class="presets">
-          <label>Element Presets</label>
-          <div class="preset-grid">
-            ${ELEMENT_PRESETS.map(
-              (p) => html`
-                <button
-                  class="preset-btn ${atom.protons === p.Z ? 'active' : ''}"
-                  @click=${() => this.applyPreset(p)}
-                  title="${p.name} (Z=${p.Z}): ${p.n}${['s','p','d','f'][p.l]}"
-                >
-                  ${p.symbol}
-                  <span class="z-num">${p.Z}</span>
-                </button>
-              `,
-            )}
-          </div>
+          <label>Element</label>
+          <button class="element-btn" @click=${() => { this.periodicTableOpen = true; }}>
+            <span class="el-symbol" style="background:${elBg}">
+              ${currentElement?.symbol ?? '?'}
+            </span>
+            <span class="el-info">
+              <span class="el-name">${currentElement?.name ?? 'Unknown'}</span>
+              <span class="el-z">Z = ${atom.protons}</span>
+            </span>
+            <span class="el-arrow">&#9662;</span>
+          </button>
         </div>
 
         <div class="grid">
           <div class="atom-id">${atom.id} · Z=${atom.protons} · e⁻=${atom.electrons}</div>
 
-          <div class="section-label">Quantum Numbers</div>
-
-          <label>n (shell)</label>
-          <input type="range" min="1" max="5" step="1"
-            .value=${String(n)}
-            @change=${(e: Event) => this.onSlider('n', e)} />
-          <span class="val">${n}</span>
-
-          <label>l (angular)</label>
-          <input type="range" min="0" .max=${String(n - 1)} step="1"
-            .value=${String(l)}
-            @change=${(e: Event) => this.onSlider('l', e)} />
-          <span class="val">${l}</span>
-
-          <label>m (magnetic)</label>
-          <input type="range" .min=${String(-l)} .max=${String(l)} step="1"
-            .value=${String(m)}
-            @change=${(e: Event) => this.onSlider('m', e)} />
-          <span class="val">${m}</span>
+          <div class="section-label">Electron Configuration</div>
+          <div class="electron-config">${configurationString(atom.electrons)}</div>
 
           <div class="section-label">Nucleus</div>
 

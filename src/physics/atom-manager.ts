@@ -1,7 +1,7 @@
 import { Atom } from './atom.js';
 import { OrbitalPipeline } from '../gpu/orbital-pipeline.js';
 import type { AtomGPUConfig } from '../gpu/orbital-pipeline.js';
-import { estimateMaxPsiMolecular } from './particle-generator.js';
+import { estimateMaxPsi } from './particle-generator.js';
 
 /**
  * Manages a collection of Atom instances and coordinates particle generation.
@@ -63,15 +63,26 @@ export class AtomManager {
 
   /**
    * Build the atom config array expected by the GPU pipeline.
+   * Expands each atom into its full electron configuration (all occupied orbitals).
    */
   private buildAtomConfigs(scale: number): AtomGPUConfig[] {
-    return this.all.map((atom) => ({
-      n: atom.n,
-      l: atom.l,
-      m: atom.m,
-      position: atom.position,
-      rMax: scale * atom.n * atom.n,
-    }));
+    const configs: AtomGPUConfig[] = [];
+    for (const atom of this.all) {
+      const orbitals = atom.occupiedOrbitals;
+      if (orbitals.length === 0) continue;
+      for (const orbital of orbitals) {
+        const rMax = scale * orbital.n * orbital.n;
+        configs.push({
+          n: orbital.n,
+          l: orbital.l,
+          m: orbital.m,
+          position: atom.position,
+          rMax,
+          maxPsi: estimateMaxPsi(orbital.n, orbital.l, orbital.m, rMax),
+        });
+      }
+    }
+    return configs;
   }
 
   /**
@@ -90,13 +101,9 @@ export class AtomManager {
 
     const atomConfigs = this.buildAtomConfigs(scale);
 
-    // Estimate max |ψ_total|²·r² for rejection-sampling normalization
-    const cpuConfigs = this.all.map((a) => ({
-      n: a.n, l: a.l, m: a.m, position: a.position,
-    }));
-    const maxPsi = estimateMaxPsiMolecular(cpuConfigs, scale);
-
-    const data = await pipeline.generate(atomConfigs, particleCount, scale, threshold, maxPsi);
+    // Per-orbital maxPsi is already baked into each AtomGPUConfig.
+    // Global maxPsi=0 (unused in incoherent mode=0).
+    const data = await pipeline.generate(atomConfigs, particleCount, scale, threshold, 0, 0);
 
     // Mark all atoms clean
     for (const atom of this.atoms.values()) {

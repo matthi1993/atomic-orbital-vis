@@ -1,4 +1,6 @@
 import type { GeneratedParticles } from '../types.js';
+import { electronConfiguration, configurationString, valenceOrbitals } from './electron-config.js';
+import type { OrbitalOccupancy } from './electron-config.js';
 
 let nextId = 1;
 
@@ -38,6 +40,14 @@ export class Atom {
   get dirty(): boolean { return this._dirty; }
   get particleData(): GeneratedParticles | null { return this._particleData; }
 
+  get occupiedOrbitals(): OrbitalOccupancy[] {
+    return valenceOrbitals(this._electrons);
+  }
+
+  get configString(): string {
+    return configurationString(this._electrons);
+  }
+
   setQuantumNumbers(n: number, l: number, m: number): void {
     if (this._n === n && this._l === l && this._m === m) return;
     this._n = n;
@@ -57,7 +67,18 @@ export class Atom {
   }
 
   setElectrons(count: number): void {
-    this._electrons = Math.max(0, Math.round(count));
+    const newCount = Math.max(0, Math.round(count));
+    if (this._electrons === newCount) return;
+    this._electrons = newCount;
+    // Auto-set quantum numbers to the outermost occupied orbital
+    const orbitals = electronConfiguration(this._electrons);
+    if (orbitals.length > 0) {
+      const last = orbitals[orbitals.length - 1];
+      this._n = last.n;
+      this._l = last.l;
+      this._m = last.m;
+    }
+    this._dirty = true;
   }
 
   setParticleData(data: GeneratedParticles): void {

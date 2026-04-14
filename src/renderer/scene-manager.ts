@@ -106,8 +106,8 @@ export class SceneManager {
 
     // Detect if camera actually moved since last frame
     const cam = this.camera;
-    const posChanged = !cam.position.equals(this._lastCamPos);
-    const quatChanged = !cam.quaternion.equals(this._lastCamQuat);
+    const posChanged = !(cam.position as any).equals(this._lastCamPos);
+    const quatChanged = !(cam.quaternion as any).equals(this._lastCamQuat);
     if (posChanged || quatChanged) {
       this._needsRender = true;
       this._lastCamPos.copy(cam.position);

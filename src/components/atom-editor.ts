@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { Atom } from '../physics/atom.js';
 import { configurationString } from '../physics/electron-config.js';
+import type { OrbitalOccupancy } from '../physics/electron-config.js';
 import { getElement, CATEGORY_COLORS } from '../config/elements.js';
 import type { ElementData } from '../config/elements.js';
 import './collapsible-panel.js';
@@ -16,6 +17,11 @@ export interface AtomEditorChange {
 export interface AtomPresetChange {
   atomId: string;
   preset: ElementPreset;
+}
+
+export interface AtomOrbitalSelect {
+  atomId: string;
+  orbitalIndex: number | null; // null = all
 }
 
 /** Element preset: ground-state outermost orbital for the first 10 elements */
@@ -184,6 +190,35 @@ export class AtomEditor extends LitElement {
       line-height: 1.6;
       word-break: break-word;
     }
+
+    .orbital-select-wrap {
+      grid-column: 1 / -1;
+      margin-top: 4px;
+    }
+
+    .orbital-select-wrap label {
+      display: block;
+      font-size: 12px;
+      color: #aac;
+      margin-bottom: 4px;
+      text-align: left;
+    }
+
+    .orbital-select {
+      width: 100%;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(100,140,255,0.3);
+      border-radius: 4px;
+      color: #8cf;
+      font-size: 12px;
+      padding: 5px 6px;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .orbital-select:focus {
+      outline: none;
+      border-color: #58f;
+    }
   `;
 
   private emit(key: AtomEditorChange['key'], value: number) {
@@ -228,6 +263,24 @@ export class AtomEditor extends LitElement {
     this.emit(key, +(e.target as HTMLInputElement).value);
   }
 
+  private emitOrbitalSelect(index: number | null) {
+    if (!this.atom) return;
+    this.dispatchEvent(
+      new CustomEvent('atom-orbital-select', {
+        detail: { atomId: this.atom.id, orbitalIndex: index } satisfies AtomOrbitalSelect,
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private static SUBSHELL_LABELS = ['s', 'p', 'd', 'f'];
+
+  private formatOrbital(o: OrbitalOccupancy): string {
+    const label = AtomEditor.SUBSHELL_LABELS[o.l] ?? '?';
+    return `${o.n}${label} (m=${o.m})`;
+  }
+
   render() {
     const atom = this.atom;
     if (!atom) return nothing;
@@ -264,6 +317,22 @@ export class AtomEditor extends LitElement {
 
           <div class="section-label">Electron Configuration</div>
           <div class="electron-config">${configurationString(atom.electrons)}</div>
+
+          <div class="orbital-select-wrap">
+            <label>Render Orbital</label>
+            <select class="orbital-select"
+              @change=${(e: Event) => {
+                const val = (e.target as HTMLSelectElement).value;
+                this.emitOrbitalSelect(val === 'all' ? null : parseInt(val, 10));
+              }}>
+              <option value="all" ?selected=${atom.selectedOrbitalIndex === null}>All outer orbitals</option>
+              ${atom.occupiedOrbitals.map((o, i) => html`
+                <option value=${i} ?selected=${atom.selectedOrbitalIndex === i}>
+                  ${this.formatOrbital(o)} — ${o.electrons}e⁻
+                </option>
+              `)}
+            </select>
+          </div>
 
           <div class="section-label">Nucleus</div>
 

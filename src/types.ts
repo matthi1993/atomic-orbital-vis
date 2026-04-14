@@ -11,10 +11,6 @@ export interface OrbitalParams {
   opaqueMode: boolean;
   orthographic: boolean;
   showAxes: boolean;
-  showRadialPlot: boolean;
-  showCombinedPlot: boolean;
-  showThetaPlot: boolean;
-  showPhiPlot: boolean;
   showElectrons: boolean;
   cutPlane: 'none' | 'x' | 'y' | 'z';
 }

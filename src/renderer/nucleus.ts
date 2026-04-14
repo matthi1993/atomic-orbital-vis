@@ -3,9 +3,7 @@ import * as THREE from 'three';
 interface NucleusEntry {
   id: string;
   mesh: THREE.Mesh;
-  glow: THREE.Mesh;
   meshMat: THREE.MeshBasicMaterial;
-  glowMat: THREE.MeshBasicMaterial;
 }
 
 /**
@@ -20,7 +18,6 @@ export class Nucleus {
 
   /* Shared geometry – created once, reused for every nucleus */
   private coreGeo = new THREE.SphereGeometry(0.3, 32, 32);
-  private glowGeo = new THREE.SphereGeometry(0.6, 32, 32);
   /* Larger invisible sphere for easier clicking */
   private hitGeo = new THREE.SphereGeometry(1.2, 16, 16);
 
@@ -38,13 +35,8 @@ export class Nucleus {
     const mesh = new THREE.Mesh(this.coreGeo, meshMat);
     mesh.position.set(...position);
 
-    const glowMat = new THREE.MeshBasicMaterial({ color: 0xffffcc, transparent: true, opacity: 0.15 });
-    const glow = new THREE.Mesh(this.glowGeo, glowMat);
-    glow.position.set(...position);
-
     this.scene.add(mesh);
-    this.scene.add(glow);
-    this.entries.set(id, { id, mesh, glow, meshMat, glowMat });
+    this.entries.set(id, { id, mesh, meshMat });
   }
 
   removeNucleus(id: string): void {
@@ -52,9 +44,7 @@ export class Nucleus {
     if (!entry) return;
 
     this.scene.remove(entry.mesh);
-    this.scene.remove(entry.glow);
     entry.meshMat.dispose();
-    entry.glowMat.dispose();
     this.entries.delete(id);
     if (this._selectedId === id) this._selectedId = null;
   }
@@ -63,7 +53,6 @@ export class Nucleus {
     const entry = this.entries.get(id);
     if (!entry) return;
     entry.mesh.position.set(...position);
-    entry.glow.position.set(...position);
   }
 
   get selectedId(): string | null { return this._selectedId; }
@@ -102,9 +91,6 @@ export class Nucleus {
       const isSelected = entry.id === this._selectedId;
       const baseScale = isSelected ? 1.3 : 1.0;
       entry.mesh.scale.setScalar(pulse * baseScale);
-      entry.glow.scale.setScalar(pulse * baseScale * 1.8);
-      // Highlight selected: brighter glow
-      entry.glowMat.opacity = isSelected ? 0.4 : 0.15;
       entry.meshMat.color = isSelected
         ? new THREE.Color(0xffffff)
         : new THREE.Color(0xffffaa);

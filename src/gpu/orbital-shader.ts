@@ -1,24 +1,19 @@
 /**
- * Molecular orbital compute shader.
+ * Per-orbital electron density compute shader.
  *
- * Evaluates the coherent superposition ψ_total = Σ ψᵢ from all atom centres
- * and uses |ψ_total|² for rejection sampling. This produces true bonding /
- * antibonding molecular orbital shapes rather than independent per-atom clouds.
- *
- * Importance-sampling strategy: each thread picks a random atom, samples in
- * spherical coordinates around that atom, then evaluates the full molecular
- * wavefunction at the resulting Cartesian point.
+ * Each thread picks a random orbital, samples in spherical coordinates
+ * around that atom, and uses |ψ|²·r² rejection sampling to place a particle.
  */
 export const orbitalShaderCode = /* wgsl */`
   struct GlobalUniforms {
     count: f32,
     scale: f32,
     threshold: f32,
-    max_psi: f32,
     seed: f32,
     num_atoms: f32,
-    mode: f32,       // 0 = incoherent (electron density), 1 = coherent (molecular orbital)
+    _pad0: f32,
     _pad1: f32,
+    _pad2: f32,
   };
 
   struct AtomConfig {
@@ -29,7 +24,7 @@ export const orbitalShaderCode = /* wgsl */`
     pos_y: f32,
     pos_z: f32,
     r_max: f32,
-    max_psi: f32,  // per-orbital max |ψ|²·r² for rejection sampling
+    max_psi: f32,
   };
 
   struct Particle {
@@ -106,11 +101,9 @@ export const orbitalShaderCode = /* wgsl */`
     return lk1;
   }
 
-  /* Signed wavefunction ψ = R_nl(r) · Y_lm(θ, φ) for a single atom. */
-  fn compute_psi(n: i32, l: i32, m: i32, r: f32, cosTheta: f32, phi: f32, scale: f32) -> f32 {
+  /* ψ = R_nl(r) · Y_lm(θ,φ) — caller guarantees r ∈ (0, r_max). */
+  fn compute_psi(n: i32, l: i32, m: i32, r: f32, cosTheta: f32, phi: f32) -> f32 {
     let absm = abs(m);
-    let rMax = scale * f32(n * n);
-    if (r >= rMax || r < 1e-10) { return 0.0; }
 
     let inv_n = 1.0 / f32(n);
     let two_over_n = 2.0 * inv_n;
@@ -124,8 +117,9 @@ export const orbitalShaderCode = /* wgsl */`
     let Y_mult = select(1.0, SQRT2, absm > 0);
 
     let rho = two_over_n * r;
+    // Multiply loop instead of pow() — l is small (0–3 in practice)
     var rho_l: f32 = 1.0;
-    if (l > 0) { rho_l = pow(rho, f32(l)); }
+    for (var k: i32 = 0; k < l; k++) { rho_l *= rho; }
     let R_val = R_norm * exp(-rho * 0.5) * rho_l * laguerre(n - l - 1, 2 * l + 1, rho);
 
     let plm = assoc_legendre(l, absm, cosTheta);
@@ -143,10 +137,7 @@ export const orbitalShaderCode = /* wgsl */`
     if (i >= u32(uniforms.count)) { return; }
 
     let num_atoms = i32(uniforms.num_atoms);
-    let scale = uniforms.scale;
     let threshold = uniforms.threshold;
-    let max_psi = uniforms.max_psi;
-    let mode = i32(uniforms.mode);
 
     var seed = pcg_hash(i * 1099087573u + u32(uniforms.seed));
 
@@ -154,85 +145,37 @@ export const orbitalShaderCode = /* wgsl */`
     var color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
 
     for (var attempt: i32 = 0; attempt < 192; attempt++) {
-      if (mode == 0) {
-        // ── Per-orbital sampling: pick ONE orbital, sample from it ──
-        let oidx = i32(floor(rand(&seed) * f32(num_atoms))) % num_atoms;
-        let orbital = atoms[oidx];
+      let oidx = i32(floor(rand(&seed) * f32(num_atoms))) % num_atoms;
+      let orbital = atoms[oidx];
 
-        let r = rand(&seed) * orbital.r_max;
-        let cosTheta = 2.0 * rand(&seed) - 1.0;
-        let phi = rand(&seed) * 2.0 * PI;
+      let r = rand(&seed) * orbital.r_max;
+      let cosTheta = 2.0 * rand(&seed) - 1.0;
+      let phi = rand(&seed) * 2.0 * PI;
 
-        let psi_val = compute_psi(i32(orbital.n), i32(orbital.l), i32(orbital.m), r, cosTheta, phi, scale);
-        let psi2r2 = psi_val * psi_val * r * r;
+      let psi_val = compute_psi(i32(orbital.n), i32(orbital.l), i32(orbital.m), r, cosTheta, phi);
+      let psi2r2 = psi_val * psi_val * r * r;
 
-        var prob: f32 = 0.0;
-        if (orbital.max_psi > 0.0) {
-          prob = psi2r2 / orbital.max_psi;
-        }
-
-        if (prob < threshold) { continue; }
-        if (rand(&seed) > prob) { continue; }
-
-        let sinTheta = sqrt(max(1.0 - cosTheta * cosTheta, 0.0));
-        let x = orbital.pos_x + r * sinTheta * cos(phi);
-        let y = orbital.pos_y + r * sinTheta * sin(phi);
-        let z = orbital.pos_z + r * cosTheta;
-
-        pos = vec4<f32>(x, y, z, 1.0);
-        let t = min(prob * 2.0, 1.0);
-        if (psi_val >= 0.0) {
-          color = vec4<f32>(0.2 + 0.6 * t, 0.4 + 0.5 * t, 1.0, 0.4 + 0.6 * t);
-        } else {
-          color = vec4<f32>(1.0, 0.3 + 0.4 * t, 0.2 + 0.3 * t, 0.4 + 0.6 * t);
-        }
-        break;
-
-      } else {
-        // ── Coherent superposition: ψ_total = Σ ψᵢ ──
-        let atom_idx = i32(floor(rand(&seed) * f32(num_atoms))) % num_atoms;
-        let ref_atom = atoms[atom_idx];
-
-        let r = rand(&seed) * ref_atom.r_max;
-        let cosTheta = 2.0 * rand(&seed) - 1.0;
-        let phi = rand(&seed) * 2.0 * PI;
-
-        let sinTheta = sqrt(max(1.0 - cosTheta * cosTheta, 0.0));
-        let x = ref_atom.pos_x + r * sinTheta * cos(phi);
-        let y = ref_atom.pos_y + r * sinTheta * sin(phi);
-        let z = ref_atom.pos_z + r * cosTheta;
-
-        var psi_total: f32 = 0.0;
-        for (var a: i32 = 0; a < num_atoms; a++) {
-          let atom = atoms[a];
-          let dx = x - atom.pos_x;
-          let dy = y - atom.pos_y;
-          let dz = z - atom.pos_z;
-          let r_a = sqrt(dx * dx + dy * dy + dz * dz);
-          if (r_a < 1e-10) { continue; }
-          let ct_a = dz / r_a;
-          let phi_a = atan2(dy, dx);
-          psi_total += compute_psi(i32(atom.n), i32(atom.l), i32(atom.m), r_a, ct_a, phi_a, scale);
-        }
-
-        let psi2 = psi_total * psi_total * r * r;
-        var prob: f32 = 0.0;
-        if (max_psi > 0.0) {
-          prob = psi2 / max_psi;
-        }
-
-        if (prob < threshold) { continue; }
-        if (rand(&seed) > prob) { continue; }
-
-        pos = vec4<f32>(x, y, z, 1.0);
-        let t = min(prob * 2.0, 1.0);
-        if (psi_total >= 0.0) {
-          color = vec4<f32>(0.2 + 0.6 * t, 0.4 + 0.5 * t, 1.0, 0.4 + 0.6 * t);
-        } else {
-          color = vec4<f32>(1.0, 0.3 + 0.4 * t, 0.2 + 0.3 * t, 0.4 + 0.6 * t);
-        }
-        break;
+      var prob: f32 = 0.0;
+      if (orbital.max_psi > 0.0) {
+        prob = psi2r2 / orbital.max_psi;
       }
+
+      if (prob < threshold) { continue; }
+      if (rand(&seed) > prob) { continue; }
+
+      let sinTheta = sqrt(max(1.0 - cosTheta * cosTheta, 0.0));
+      let x = orbital.pos_x + r * sinTheta * cos(phi);
+      let y = orbital.pos_y + r * sinTheta * sin(phi);
+      let z = orbital.pos_z + r * cosTheta;
+
+      pos = vec4<f32>(x, y, z, 1.0);
+      let t = min(prob * 2.0, 1.0);
+      if (psi_val >= 0.0) {
+        color = vec4<f32>(0.2 + 0.6 * t, 0.4 + 0.5 * t, 1.0, 0.4 + 0.6 * t);
+      } else {
+        color = vec4<f32>(1.0, 0.3 + 0.4 * t, 0.2 + 0.3 * t, 0.4 + 0.6 * t);
+      }
+      break;
     }
 
     particles[i] = Particle(pos, color);

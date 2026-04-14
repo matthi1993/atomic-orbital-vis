@@ -68,7 +68,7 @@ export class AtomManager {
   private buildAtomConfigs(scale: number): AtomGPUConfig[] {
     const configs: AtomGPUConfig[] = [];
     for (const atom of this.all) {
-      const orbitals = atom.occupiedOrbitals;
+      const orbitals = atom.renderOrbitals;
       if (orbitals.length === 0) continue;
       for (const orbital of orbitals) {
         const rMax = scale * orbital.n * orbital.n;
@@ -102,8 +102,7 @@ export class AtomManager {
     const atomConfigs = this.buildAtomConfigs(scale);
 
     // Per-orbital maxPsi is already baked into each AtomGPUConfig.
-    // Global maxPsi=0 (unused in incoherent mode=0).
-    const data = await pipeline.generate(atomConfigs, particleCount, scale, threshold, 0, 0);
+    const data = await pipeline.generate(atomConfigs, particleCount, scale, threshold);
 
     // Mark all atoms clean
     for (const atom of this.atoms.values()) {

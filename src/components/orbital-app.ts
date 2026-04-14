@@ -10,7 +10,7 @@ import { Nucleus } from '../renderer/nucleus.js';
 import { AxesPlots } from '../renderer/axes-plots.js';
 import './render-panel.js';
 import './atom-editor.js';
-import type { AtomEditorChange, AtomPresetChange } from './atom-editor.js';
+import type { AtomEditorChange, AtomPresetChange, AtomOrbitalSelect } from './atom-editor.js';
 
 @customElement('orbital-app')
 export class OrbitalApp extends LitElement {
@@ -95,6 +95,7 @@ export class OrbitalApp extends LitElement {
         .version=${this.atomVersion}
         @atom-edit=${this.onAtomEdit}
         @atom-preset=${this.onAtomPreset}
+        @atom-orbital-select=${this.onAtomOrbitalSelect}
       ></atom-editor>
       <render-panel
         .params=${this.params}
@@ -235,6 +236,17 @@ export class OrbitalApp extends LitElement {
     this.atomVersion++;
   };
 
+  private onAtomOrbitalSelect = (e: CustomEvent<AtomOrbitalSelect>) => {
+    const { atomId, orbitalIndex } = e.detail;
+    const atom = this.atomManager.getAtom(atomId);
+    if (!atom) return;
+
+    atom.setSelectedOrbitalIndex(orbitalIndex);
+    this.atomManager.markAllDirty();
+    this.regenerate();
+    this.atomVersion++;
+  };
+
   private async regenerate() {
     if (this.generating) return;
     this.generating = true;
@@ -265,10 +277,6 @@ export class OrbitalApp extends LitElement {
       this.axesPlots.update(selected.n, selected.l, selected.m, scale);
     }
     this.axesPlots.showAxes = this.params.showAxes;
-    this.axesPlots.showRadialPlot = this.params.showRadialPlot;
-    this.axesPlots.showCombinedPlot = this.params.showCombinedPlot;
-    this.axesPlots.showThetaPlot = this.params.showThetaPlot;
-    this.axesPlots.showPhiPlot = this.params.showPhiPlot;
 
     this.generating = false;
   }
@@ -290,10 +298,6 @@ export class OrbitalApp extends LitElement {
     this.pointCloud.activeCamera = this.sceneManager.camera;
     this.sceneManager.autoRotateSpeed = this.params.rotSpeed;
     this.axesPlots.showAxes = this.params.showAxes;
-    this.axesPlots.showRadialPlot = this.params.showRadialPlot;
-    this.axesPlots.showCombinedPlot = this.params.showCombinedPlot;
-    this.axesPlots.showThetaPlot = this.params.showThetaPlot;
-    this.axesPlots.showPhiPlot = this.params.showPhiPlot;
 
     this.pointCloud.updateIfNeeded();
     this.nucleus.update(this.elapsedTime);

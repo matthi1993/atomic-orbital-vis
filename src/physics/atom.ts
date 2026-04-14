@@ -20,6 +20,7 @@ export class Atom {
   private _electrons: number;
   private _dirty = true;
   private _particleData: GeneratedParticles | null = null;
+  private _selectedOrbitalIndex: number | null = null; // null = all
 
   constructor(n = 1, l = 0, m = 0, position: [number, number, number] = [0, 0, 0]) {
     this.id = `atom-${nextId++}`;
@@ -42,6 +43,21 @@ export class Atom {
 
   get occupiedOrbitals(): OrbitalOccupancy[] {
     return valenceOrbitals(this._electrons);
+  }
+
+  /** Orbitals to actually render (filtered by selection) */
+  get renderOrbitals(): OrbitalOccupancy[] {
+    const all = this.occupiedOrbitals;
+    if (this._selectedOrbitalIndex === null || this._selectedOrbitalIndex >= all.length) return all;
+    return [all[this._selectedOrbitalIndex]];
+  }
+
+  get selectedOrbitalIndex(): number | null { return this._selectedOrbitalIndex; }
+
+  setSelectedOrbitalIndex(idx: number | null): void {
+    if (this._selectedOrbitalIndex === idx) return;
+    this._selectedOrbitalIndex = idx;
+    this._dirty = true;
   }
 
   get configString(): string {

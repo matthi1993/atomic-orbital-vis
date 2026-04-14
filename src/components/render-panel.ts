@@ -183,8 +183,8 @@ export class RenderPanel extends LitElement {
 
   /* ── track which sub-sections are open ─────────────── */
   private _openSections: Record<string, boolean> = {
-    particles: true,
-    overlays: true,
+    overlays: false,
+    particles: false,
     camera: false,
     cutPlane: false,
   };
@@ -259,6 +259,19 @@ export class RenderPanel extends LitElement {
     return html`
       <collapsible-panel heading="Rendering">
 
+        ${this.renderSection('overlays', 'Overlays', html`
+          <div class="toggle-row">
+            <input
+              type="checkbox"
+              id="showAxes"
+              .checked=${p.showAxes}
+              @change=${(e: Event) =>
+                this.emit('showAxes', (e.target as HTMLInputElement).checked)}
+            />
+            <label for="showAxes">Axes</label>
+          </div>
+        `)}
+
         ${this.renderSection('particles', 'Particles', html`
           ${this.sliderFromDef('count', PARAM_DEFS.count!, p.count)}
           ${this.sliderFromDef('threshold', PARAM_DEFS.threshold!, p.threshold)}
@@ -284,59 +297,6 @@ export class RenderPanel extends LitElement {
                 this.emit('showElectrons', (e.target as HTMLInputElement).checked)}
             />
             <label for="showElectrons">Electron Cloud</label>
-          </div>
-        `)}
-
-        ${this.renderSection('overlays', 'Overlays', html`
-          <div class="toggle-row">
-            <input
-              type="checkbox"
-              id="showAxes"
-              .checked=${p.showAxes}
-              @change=${(e: Event) =>
-                this.emit('showAxes', (e.target as HTMLInputElement).checked)}
-            />
-            <label for="showAxes">Axes</label>
-          </div>
-          <div class="toggle-row">
-            <input
-              type="checkbox"
-              id="showRadialPlot"
-              .checked=${p.showRadialPlot}
-              @change=${(e: Event) =>
-                this.emit('showRadialPlot', (e.target as HTMLInputElement).checked)}
-            />
-            <label for="showRadialPlot">R(r) Radial Wave</label>
-          </div>
-          <div class="toggle-row">
-            <input
-              type="checkbox"
-              id="showCombinedPlot"
-              .checked=${p.showCombinedPlot}
-              @change=${(e: Event) =>
-                this.emit('showCombinedPlot', (e.target as HTMLInputElement).checked)}
-            />
-            <label for="showCombinedPlot">ψ(r) Combined Wave</label>
-          </div>
-          <div class="toggle-row">
-            <input
-              type="checkbox"
-              id="showThetaPlot"
-              .checked=${p.showThetaPlot}
-              @change=${(e: Event) =>
-                this.emit('showThetaPlot', (e.target as HTMLInputElement).checked)}
-            />
-            <label for="showThetaPlot">Y(θ) Angular Polar</label>
-          </div>
-          <div class="toggle-row">
-            <input
-              type="checkbox"
-              id="showPhiPlot"
-              .checked=${p.showPhiPlot}
-              @change=${(e: Event) =>
-                this.emit('showPhiPlot', (e.target as HTMLInputElement).checked)}
-            />
-            <label for="showPhiPlot">Y(φ) Angular Equatorial</label>
           </div>
         `)}
 

@@ -58,14 +58,12 @@ export class AxesPlots {
 
     this._target = this.axesGroup;
     this.buildAxes(axisLen);
-    this._target = this.radialGroup;
-    this.buildRadialPlot(n, l, rMax, axisLen);
-    this._target = this.combinedGroup;
-    this.buildCombinedPlot(n, l, m, rMax, axisLen);
-    this._target = this.thetaGroup;
-    this.buildAngularThetaPlot(l, m, axisLen);
-    this._target = this.phiGroup;
-    this.buildAngularPhiPlot(l, m, axisLen);
+
+    // Keep plot groups hidden (plots removed from UI)
+    this.radialGroup.visible = false;
+    this.combinedGroup.visible = false;
+    this.thetaGroup.visible = false;
+    this.phiGroup.visible = false;
   }
 
   /* ── coordinate axes ──────────────────────────────────────────── */
@@ -88,7 +86,7 @@ export class AxesPlots {
       /* label sprite at positive end */
       const sprite = this.makeLabel(label, color);
       sprite.position.copy(dir.clone().multiplyScalar(extent * 1.1));
-      sprite.scale.set(extent * 0.08, extent * 0.02, 1);
+      sprite.scale.set(1.2, 0.3, 1);
       this._target.add(sprite);
     }
   }

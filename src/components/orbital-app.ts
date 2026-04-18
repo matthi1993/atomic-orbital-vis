@@ -260,15 +260,19 @@ export class OrbitalApp extends LitElement {
     );
     const usedCount = Math.max(totalCount, 1);
 
-    // Extract stride-3 positions from stride-4 orbital output
+    // Extract stride-3 positions and per-point sizes from stride-4 orbital output
     const pos3 = new Float32Array(usedCount * 3);
+    const sizes = new Float32Array(usedCount);
     for (let i = 0; i < usedCount; i++) {
       pos3[i * 3 + 0] = positions[i * 4 + 0];
       pos3[i * 3 + 1] = positions[i * 4 + 1];
       pos3[i * 3 + 2] = positions[i * 4 + 2];
+      // Color alpha encodes probability (0.4–1.0); map to size multiplier
+      const alpha = colors[i * 4 + 3];
+      sizes[i] = alpha * alpha;
     }
 
-    this.pointCloud.create(usedCount, colors, this.params.pointSize);
+    this.pointCloud.create(usedCount, colors, this.params.pointSize, sizes);
     this.pointCloud.setPositions(pos3);
     this.sceneManager.markDirty();
 

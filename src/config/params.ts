@@ -82,7 +82,7 @@ export const DEFAULT_PARAMS: OrbitalParams = {
   l: 0,
   m: 0,
   count: 50000,
-  threshold: 0.15,
+  threshold: 0.015,
   scale: 10.0,
   pointSize: 10.0,
   rotSpeed: 0,

@@ -21,6 +21,7 @@ export class PointCloud {
   private readonly _scl = new THREE.Vector3();
 
   private storedPositions: Float32Array | null = null;
+  private storedSizes: Float32Array | null = null;
   private matrixDirty = true;
   private lastQuaternion = new THREE.Quaternion();
   private lastPointSize = 0;
@@ -31,7 +32,7 @@ export class PointCloud {
     this.camera = camera;
   }
 
-  create(count: number, colors: Float32Array, pointSize: number): void {
+  create(count: number, colors: Float32Array, pointSize: number, sizes?: Float32Array): void {
     this.dispose();
     this.count = count;
     this._pointSize = pointSize;
@@ -58,6 +59,7 @@ export class PointCloud {
     }
     this.mesh.instanceColor = new THREE.InstancedBufferAttribute(colorArray, 3);
 
+    this.storedSizes = sizes ?? null;
     this.scene.add(this.mesh);
   }
 
@@ -89,9 +91,9 @@ export class PointCloud {
     if (!this.mesh || !this.storedPositions) return;
 
     const positions = this.storedPositions;
+    const sizes = this.storedSizes;
     const q = this.camera.quaternion;
-    const s = this._pointSize * SIZE_SCALE;
-    this._scl.set(s, s, s);
+    const baseSize = this._pointSize * SIZE_SCALE;
 
     const cut = this._cutPlane;
     const zeroScale = new THREE.Vector3(0, 0, 0);
@@ -107,6 +109,8 @@ export class PointCloud {
         (cut === 'y' && py > 0) ||
         (cut === 'z' && pz > 0);
 
+      const s = sizes ? baseSize * sizes[i] : baseSize;
+      this._scl.set(s, s, s);
       this._mat.compose(this._pos, q, clipped ? zeroScale : this._scl);
       this.mesh.setMatrixAt(i, this._mat);
     }

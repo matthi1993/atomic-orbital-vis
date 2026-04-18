@@ -1,71 +1,62 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { theme, layout } from './styles/index.js';
 
 @customElement('collapsible-panel')
 export class CollapsiblePanel extends LitElement {
   @property({ type: String }) heading = '';
   @property({ type: Boolean }) collapsed = true;
 
-  static styles = css`
-    :host {
-      display: block;
-    }
+  static styles = [
+    ...theme,
+    layout,
+    css`
+      :host { display: block; }
 
-    .panel {
-      background: rgba(10, 10, 30, 0.85);
-      backdrop-filter: blur(8px);
-      border: 1px solid rgba(100, 140, 255, 0.25);
-      border-radius: 12px;
-      width: 300px;
-      color: #eee;
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      overflow: hidden;
-    }
+      .panel {
+        background: var(--c-bg);
+        backdrop-filter: blur(8px);
+        border: 1px solid var(--c-border);
+        border-radius: var(--radius-lg);
+        width: var(--panel-width);
+        color: var(--c-text);
+        font-family: var(--font-family);
+        overflow: hidden;
+      }
 
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 20px;
-      cursor: pointer;
-      user-select: none;
-    }
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--sp-md) var(--sp-xl);
+        cursor: pointer;
+        user-select: none;
+      }
 
-    .header:hover {
-      background: rgba(100, 140, 255, 0.08);
-    }
+      .header:hover { background: var(--c-bg-hover); }
 
-    h2 {
-      font-size: 14px;
-      margin: 0;
-      color: #8af;
-    }
+      .chevron {
+        font-size: var(--fs-sm);
+        color: var(--c-accent-soft);
+        transition: transform var(--transition-slow) ease;
+      }
 
-    .chevron {
-      font-size: 12px;
-      color: #8af;
-      transition: transform 0.2s ease;
-    }
+      .chevron.open { transform: rotate(180deg); }
 
-    .chevron.open {
-      transform: rotate(180deg);
-    }
+      .body {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height var(--transition-slow) ease;
+      }
 
-    .body {
-      max-height: 0;
-      overflow: hidden;
-      transition: max-height 0.3s ease;
-    }
+      .body.open {
+        max-height: calc(100vh - 80px);
+        overflow-y: auto;
+      }
 
-    .body.open {
-      max-height: calc(100vh - 80px);
-      overflow-y: auto;
-    }
-
-    .content {
-      padding: 0 20px 20px;
-    }
-  `;
+      .content { padding: 0 var(--sp-xl) var(--sp-xl); }
+    `,
+  ];
 
   private toggle() {
     this.collapsed = !this.collapsed;

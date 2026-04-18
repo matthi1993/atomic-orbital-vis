@@ -8,6 +8,7 @@ import { SceneManager } from '../renderer/scene-manager.js';
 import { PointCloud } from '../renderer/point-cloud.js';
 import { Nucleus } from '../renderer/nucleus.js';
 import { AxesPlots } from '../renderer/axes-plots.js';
+import { theme } from './styles/index.js';
 import './render-panel.js';
 import './atom-editor.js';
 import type { AtomEditorChange, AtomPresetChange, AtomOrbitalSelect } from './atom-editor.js';
@@ -30,53 +31,50 @@ export class OrbitalApp extends LitElement {
   private generating = false;
   private animationId = 0;
 
-  static styles = css`
-    :host {
-      display: block;
-      width: 100vw;
-      height: 100vh;
-      position: relative;
-    }
+  static styles = [
+    ...theme,
+    css`
+      :host {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        position: relative;
+      }
 
-    .canvas-container {
-      width: 100%;
-      height: 100%;
-    }
+      .canvas-container { width: 100%; height: 100%; }
+      .canvas-container canvas { display: block; }
 
-    .canvas-container canvas {
-      display: block;
-    }
+      .info {
+        position: absolute;
+        bottom: var(--sp-lg);
+        left: var(--sp-lg);
+        font-size: var(--fs-sm);
+        color: var(--c-text-dim);
+        font-family: var(--font-family);
+      }
 
-    .info {
-      position: absolute;
-      bottom: 16px;
-      left: 16px;
-      font-size: 11px;
-      color: #556;
-      font-family: 'Segoe UI', system-ui, sans-serif;
-    }
+      .no-webgpu {
+        display: flex;
+        position: fixed;
+        inset: 0;
+        background: #111;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        font-size: 20px;
+        color: var(--c-text-error);
+        text-align: center;
+        padding: 40px;
+        font-family: var(--font-family);
+      }
 
-    .no-webgpu {
-      display: flex;
-      position: fixed;
-      inset: 0;
-      background: #111;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      font-size: 20px;
-      color: #f66;
-      text-align: center;
-      padding: 40px;
-      font-family: 'Segoe UI', system-ui, sans-serif;
-    }
-
-    .no-webgpu .hint {
-      font-size: 14px;
-      color: #888;
-      margin-top: 8px;
-    }
-  `;
+      .no-webgpu .hint {
+        font-size: var(--fs-md);
+        color: var(--c-text-dim);
+        margin-top: var(--sp-sm);
+      }
+    `,
+  ];
 
   render() {
     if (!this.webgpuAvailable) {
@@ -230,6 +228,8 @@ export class OrbitalApp extends LitElement {
 
     atom.setProtons(preset.Z);
     atom.setElectrons(preset.e); // n/l/m auto-derived from electron config
+    atom.setSelectedLayer('outer');
+    atom.setSelectedOrbitalIndex(null);
 
     this.atomManager.markAllDirty();
     this.regenerate();
@@ -237,10 +237,11 @@ export class OrbitalApp extends LitElement {
   };
 
   private onAtomOrbitalSelect = (e: CustomEvent<AtomOrbitalSelect>) => {
-    const { atomId, orbitalIndex } = e.detail;
+    const { atomId, layer, orbitalIndex } = e.detail;
     const atom = this.atomManager.getAtom(atomId);
     if (!atom) return;
 
+    atom.setSelectedLayer(layer);
     atom.setSelectedOrbitalIndex(orbitalIndex);
     this.atomManager.markAllDirty();
     this.regenerate();
@@ -259,15 +260,19 @@ export class OrbitalApp extends LitElement {
     );
     const usedCount = Math.max(totalCount, 1);
 
-    // Extract stride-3 positions from stride-4 orbital output
+    // Extract stride-3 positions and per-point sizes from stride-4 orbital output
     const pos3 = new Float32Array(usedCount * 3);
+    const sizes = new Float32Array(usedCount);
     for (let i = 0; i < usedCount; i++) {
       pos3[i * 3 + 0] = positions[i * 4 + 0];
       pos3[i * 3 + 1] = positions[i * 4 + 1];
       pos3[i * 3 + 2] = positions[i * 4 + 2];
+      // Color alpha encodes probability (0.4–1.0); map to size multiplier
+      const alpha = colors[i * 4 + 3];
+      sizes[i] = alpha * alpha;
     }
 
-    this.pointCloud.create(usedCount, colors, this.params.pointSize);
+    this.pointCloud.create(usedCount, colors, this.params.pointSize, sizes);
     this.pointCloud.setPositions(pos3);
     this.sceneManager.markDirty();
 

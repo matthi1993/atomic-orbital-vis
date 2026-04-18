@@ -3,183 +3,49 @@ import { customElement, property } from 'lit/decorators.js';
 import type { OrbitalParams } from '../types.js';
 import { PARAM_DEFS } from '../config/params.js';
 import type { SliderDef } from '../config/params.js';
+import { theme, controls, buttons, layout } from './styles/index.js';
 import './collapsible-panel.js';
 
 @customElement('render-panel')
 export class RenderPanel extends LitElement {
   @property({ type: Object }) params!: OrbitalParams;
 
-  static styles = css`
-    :host {
-      position: absolute;
-      top: 16px;
-      right: 16px;
-      z-index: 10;
-    }
+  static styles = [
+    ...theme,
+    controls,
+    buttons,
+    layout,
+    css`
+      :host {
+        position: absolute;
+        top: var(--sp-lg);
+        right: var(--sp-lg);
+        z-index: 10;
+      }
 
-    .control-group {
-      margin-bottom: 14px;
-    }
+      .axis-buttons {
+        display: flex;
+        gap: var(--sp-xs);
+        margin-bottom: var(--sp-sm);
+      }
 
-    label {
-      display: block;
-      font-size: 12px;
-      margin-bottom: 4px;
-      color: #aac;
-    }
+      .btn-sm.x { color: var(--c-axis-x); border-color: var(--c-axis-x-dim); }
+      .btn-sm.y { color: var(--c-axis-y); border-color: var(--c-axis-y-dim); }
+      .btn-sm.z { color: var(--c-axis-z); border-color: var(--c-axis-z-dim); }
 
-    .row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+      .cut-buttons {
+        display: flex;
+        gap: var(--sp-xs);
+      }
 
-    input[type='range'] {
-      flex: 1;
-      accent-color: #58f;
-    }
-
-    .val {
-      font-size: 12px;
-      min-width: 32px;
-      text-align: right;
-      color: #8cf;
-    }
-
-    .toggle-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .toggle-row label {
-      font-size: 12px;
-      color: #aac;
-      margin: 0;
-    }
-
-    input[type='checkbox'] {
-      accent-color: #58f;
-    }
-
-    .axis-buttons {
-      display: flex;
-      gap: 6px;
-      margin-bottom: 8px;
-    }
-
-    .axis-buttons label {
-      font-size: 12px;
-      color: #aac;
-      margin-bottom: 4px;
-    }
-
-    .axis-btn {
-      flex: 1;
-      padding: 4px 0;
-      border: 1px solid #446;
-      border-radius: 4px;
-      background: #1a1a2e;
-      color: #aac;
-      font-size: 12px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-
-    .axis-btn:hover {
-      background: #2a2a4e;
-    }
-
-    .axis-btn.x { color: #f66; border-color: #f664; }
-    .axis-btn.y { color: #6f6; border-color: #6f64; }
-    .axis-btn.z { color: #68f; border-color: #68f4; }
-
-    /* ── collapsible sub-section ─────────────────────────── */
-    .section {
-      margin-bottom: 10px;
-    }
-
-    .section-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      cursor: pointer;
-      user-select: none;
-      padding: 6px 0;
-      border-bottom: 1px solid rgba(100, 140, 255, 0.15);
-      margin-bottom: 8px;
-    }
-
-    .section-header:hover {
-      border-bottom-color: rgba(100, 140, 255, 0.35);
-    }
-
-    .section-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: #8af;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .section-chevron {
-      font-size: 10px;
-      color: #8af;
-      transition: transform 0.2s ease;
-    }
-
-    .section-chevron.open {
-      transform: rotate(180deg);
-    }
-
-    .section-body {
-      max-height: 0;
-      overflow: hidden;
-      transition: max-height 0.25s ease;
-    }
-
-    .section-body.open {
-      max-height: 600px;
-    }
-
-    /* ── cut plane buttons ──────────────────────────────── */
-    .cut-buttons {
-      display: flex;
-      gap: 6px;
-    }
-
-    .cut-btn {
-      flex: 1;
-      padding: 4px 0;
-      border: 1px solid #446;
-      border-radius: 4px;
-      background: #1a1a2e;
-      color: #aac;
-      font-size: 12px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
-    }
-
-    .cut-btn:hover {
-      background: #2a2a4e;
-    }
-
-    .cut-btn.active {
-      background: #2a2a5e;
-      border-color: #58f;
-      color: #8cf;
-    }
-
-    .cut-btn.x { color: #f66; }
-    .cut-btn.x.active { border-color: #f66; }
-    .cut-btn.y { color: #6f6; }
-    .cut-btn.y.active { border-color: #6f6; }
-    .cut-btn.z { color: #68f; }
-    .cut-btn.z.active { border-color: #68f; }
-  `;
+      .cut-x { color: var(--c-axis-x); }
+      .cut-x.active { border-color: var(--c-axis-x); }
+      .cut-y { color: var(--c-axis-y); }
+      .cut-y.active { border-color: var(--c-axis-y); }
+      .cut-z { color: var(--c-axis-z); }
+      .cut-z.active { border-color: var(--c-axis-z); }
+    `,
+  ];
 
   /* ── track which sub-sections are open ─────────────── */
   private _openSections: Record<string, boolean> = {
@@ -314,28 +180,28 @@ export class RenderPanel extends LitElement {
           </div>
           <label>Camera View</label>
           <div class="axis-buttons">
-            <button class="axis-btn x" @click=${() => this.emitView('x')}>X</button>
-            <button class="axis-btn y" @click=${() => this.emitView('y')}>Y</button>
-            <button class="axis-btn z" @click=${() => this.emitView('z')}>Z</button>
+            <button class="btn-sm x" @click=${() => this.emitView('x')}>X</button>
+            <button class="btn-sm y" @click=${() => this.emitView('y')}>Y</button>
+            <button class="btn-sm z" @click=${() => this.emitView('z')}>Z</button>
           </div>
         `)}
 
         ${this.renderSection('cutPlane', 'Cut Plane', html`
           <div class="cut-buttons">
             <button
-              class="cut-btn ${p.cutPlane === 'none' ? 'active' : ''}"
+              class="btn-sm ${p.cutPlane === 'none' ? 'active' : ''}"
               @click=${() => this.emit('cutPlane', 'none')}
             >None</button>
             <button
-              class="cut-btn x ${p.cutPlane === 'x' ? 'active' : ''}"
+              class="btn-sm cut-x ${p.cutPlane === 'x' ? 'active' : ''}"
               @click=${() => this.emit('cutPlane', 'x')}
             >X</button>
             <button
-              class="cut-btn y ${p.cutPlane === 'y' ? 'active' : ''}"
+              class="btn-sm cut-y ${p.cutPlane === 'y' ? 'active' : ''}"
               @click=${() => this.emit('cutPlane', 'y')}
             >Y</button>
             <button
-              class="cut-btn z ${p.cutPlane === 'z' ? 'active' : ''}"
+              class="btn-sm cut-z ${p.cutPlane === 'z' ? 'active' : ''}"
               @click=${() => this.emit('cutPlane', 'z')}
             >Z</button>
           </div>

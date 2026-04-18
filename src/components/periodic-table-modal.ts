@@ -2,150 +2,116 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { ELEMENTS, CATEGORY_COLORS, CATEGORY_LABELS } from '../config/elements.js';
 import type { ElementData, ElementCategory } from '../config/elements.js';
+import { theme, layout } from './styles/index.js';
 
 @customElement('periodic-table-modal')
 export class PeriodicTableModal extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
   @property({ type: Number }) selectedZ = 0;
 
-  static styles = css`
-    :host {
-      display: none;
-    }
-    :host([open]) {
-      display: block;
-    }
+  static styles = [
+    ...theme,
+    layout,
+    css`
+      :host { display: none; }
+      :host([open]) { display: block; }
 
-    .backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: 1000;
-      background: rgba(0, 0, 0, 0.75);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      backdrop-filter: blur(4px);
-    }
+      h2 {
+        margin-bottom: var(--sp-md);
+        font-size: var(--fs-lg);
+        font-weight: 500;
+        color: var(--c-text-muted);
+        text-align: center;
+        letter-spacing: 1px;
+      }
 
-    .modal {
-      background: #1a1a2e;
-      border: 1px solid rgba(100, 140, 255, 0.25);
-      border-radius: 12px;
-      padding: 20px 24px 16px;
-      max-width: 95vw;
-      max-height: 95vh;
-      overflow: auto;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-    }
+      .table {
+        display: grid;
+        grid-template-columns: repeat(18, 46px);
+        grid-template-rows: repeat(7, 46px) 12px repeat(2, 46px);
+        gap: 2px;
+      }
 
-    h2 {
-      margin: 0 0 14px;
-      font-size: 16px;
-      font-weight: 500;
-      color: #aac;
-      text-align: center;
-      letter-spacing: 1px;
-    }
+      .cell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+        position: relative;
+        user-select: none;
+      }
 
-    /* ── Main grid: 18 columns ─────────────────────────── */
-    .table {
-      display: grid;
-      grid-template-columns: repeat(18, 46px);
-      grid-template-rows: repeat(7, 46px) 12px repeat(2, 46px);
-      gap: 2px;
-    }
+      .cell:hover {
+        border-color: rgba(255, 255, 255, 0.5);
+        transform: scale(1.15);
+        z-index: 2;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+      }
 
-    /* Row 8 is just a visual gap between main table and f-block */
+      .cell.selected {
+        border-color: #fff;
+        box-shadow: 0 0 8px rgba(100, 180, 255, 0.7);
+      }
 
-    .cell {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      border-radius: 4px;
-      cursor: pointer;
-      border: 1px solid transparent;
-      transition: border-color 0.12s, transform 0.12s, box-shadow 0.12s;
-      position: relative;
-      user-select: none;
-    }
-    .cell:hover {
-      border-color: rgba(255,255,255,0.5);
-      transform: scale(1.15);
-      z-index: 2;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-    }
-    .cell.selected {
-      border-color: #fff;
-      box-shadow: 0 0 8px rgba(100,180,255,0.7);
-    }
+      .cell .z { font-size: 8px; line-height: 1; opacity: 0.7; color: #fff; }
+      .cell .sym { font-size: var(--fs-md); font-weight: var(--fw-semibold); line-height: 1.2; color: #fff; }
 
-    .cell .z {
-      font-size: 8px;
-      line-height: 1;
-      opacity: 0.7;
-      color: #fff;
-    }
-    .cell .sym {
-      font-size: 14px;
-      font-weight: 600;
-      line-height: 1.2;
-      color: #fff;
-    }
+      .marker {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-sm);
+        font-size: 8px;
+        color: #888;
+        letter-spacing: 0.3px;
+      }
 
-    /* Placeholder markers for La-Lu / Ac-Lr in main table */
-    .marker {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 4px;
-      font-size: 8px;
-      color: #888;
-      letter-spacing: 0.3px;
-    }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-sm) var(--sp-md);
+        justify-content: center;
+        margin-top: var(--sp-md);
+      }
 
-    /* ── Legend ─────────────────────────────────────────── */
-    .legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px 14px;
-      justify-content: center;
-      margin-top: 14px;
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 10px;
-      color: #99a;
-    }
-    .legend-swatch {
-      width: 12px;
-      height: 12px;
-      border-radius: 3px;
-    }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: var(--fs-xs);
+        color: #99a;
+      }
 
-    /* ── Tooltip on hover ──────────────────────────────── */
-    .cell .tooltip {
-      display: none;
-      position: absolute;
-      bottom: calc(100% + 6px);
-      left: 50%;
-      transform: translateX(-50%);
-      background: #222;
-      color: #dde;
-      font-size: 11px;
-      padding: 4px 8px;
-      border-radius: 4px;
-      white-space: nowrap;
-      pointer-events: none;
-      z-index: 10;
-      border: 1px solid rgba(100,140,255,0.3);
-    }
-    .cell:hover .tooltip {
-      display: block;
-    }
-  `;
+      .legend-swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: var(--radius-sm);
+      }
+
+      .cell .tooltip {
+        display: none;
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: #222;
+        color: #dde;
+        font-size: var(--fs-sm);
+        padding: var(--sp-xs) var(--sp-sm);
+        border-radius: var(--radius-sm);
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 10;
+        border: 1px solid var(--c-border);
+      }
+
+      .cell:hover .tooltip { display: block; }
+    `,
+  ];
 
   connectedCallback() {
     super.connectedCallback();

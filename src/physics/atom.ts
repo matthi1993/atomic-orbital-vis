@@ -1,6 +1,6 @@
 import type { GeneratedParticles } from '../types.js';
-import { electronConfiguration, configurationString, valenceOrbitals } from './electron-config.js';
-import type { OrbitalOccupancy } from './electron-config.js';
+import { electronConfiguration, configurationString, valenceOrbitals, subshells } from './electron-config.js';
+import type { OrbitalOccupancy, Subshell } from './electron-config.js';
 
 let nextId = 1;
 
@@ -20,7 +20,8 @@ export class Atom {
   private _electrons: number;
   private _dirty = true;
   private _particleData: GeneratedParticles | null = null;
-  private _selectedOrbitalIndex: number | null = null; // null = all
+  private _selectedLayer: string = 'outer'; // 'outer', 'all', or 'n-l' key
+  private _selectedOrbitalIndex: number | null = null; // null = all in layer
 
   constructor(n = 1, l = 0, m = 0, position: [number, number, number] = [0, 0, 0]) {
     this.id = `atom-${nextId++}`;
@@ -41,18 +42,36 @@ export class Atom {
   get dirty(): boolean { return this._dirty; }
   get particleData(): GeneratedParticles | null { return this._particleData; }
 
+  /** All subshells in Aufbau order */
+  get subshellList(): Subshell[] {
+    return subshells(this._electrons);
+  }
+
+  /** Orbitals for the currently selected layer */
   get occupiedOrbitals(): OrbitalOccupancy[] {
-    return valenceOrbitals(this._electrons);
+    const all = electronConfiguration(this._electrons);
+    if (this._selectedLayer === 'all') return all;
+    if (this._selectedLayer === 'outer') return valenceOrbitals(this._electrons);
+    const [n, l] = this._selectedLayer.split('-').map(Number);
+    return all.filter(o => o.n === n && o.l === l);
   }
 
-  /** Orbitals to actually render (filtered by selection) */
+  /** Orbitals to actually render (filtered by layer then individual selection) */
   get renderOrbitals(): OrbitalOccupancy[] {
-    const all = this.occupiedOrbitals;
-    if (this._selectedOrbitalIndex === null || this._selectedOrbitalIndex >= all.length) return all;
-    return [all[this._selectedOrbitalIndex]];
+    const layerOrbitals = this.occupiedOrbitals;
+    if (this._selectedOrbitalIndex === null || this._selectedOrbitalIndex >= layerOrbitals.length) return layerOrbitals;
+    return [layerOrbitals[this._selectedOrbitalIndex]];
   }
 
+  get selectedLayer(): string { return this._selectedLayer; }
   get selectedOrbitalIndex(): number | null { return this._selectedOrbitalIndex; }
+
+  setSelectedLayer(layer: string): void {
+    if (this._selectedLayer === layer) return;
+    this._selectedLayer = layer;
+    this._selectedOrbitalIndex = null; // reset individual selection
+    this._dirty = true;
+  }
 
   setSelectedOrbitalIndex(idx: number | null): void {
     if (this._selectedOrbitalIndex === idx) return;

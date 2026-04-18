@@ -3,6 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import type { OrbitalParams } from '../types.js';
 import { PARAM_DEFS } from '../config/params.js';
 import type { SliderDef } from '../config/params.js';
+import { theme, controls, buttons, layout } from './styles/index.js';
 import './collapsible-panel.js';
 
 interface OrbitalPreset {
@@ -32,92 +33,29 @@ const PRESETS: OrbitalPreset[] = [
 export class ControlPanel extends LitElement {
   @property({ type: Object }) params!: OrbitalParams;
 
-  static styles = css`
-    :host {
-      position: absolute;
-      top: 16px;
-      left: 16px;
-      z-index: 10;
-    }
+  static styles = [
+    ...theme,
+    controls,
+    buttons,
+    layout,
+    css`
+      :host {
+        position: absolute;
+        top: var(--sp-lg);
+        left: var(--sp-lg);
+        z-index: 10;
+      }
 
-    .control-group {
-      margin-bottom: 14px;
-    }
+      .presets { margin-bottom: var(--sp-md); }
+      .presets label { margin-bottom: var(--sp-xs); }
 
-    label {
-      display: block;
-      font-size: 12px;
-      margin-bottom: 4px;
-      color: #aac;
-    }
-
-    .row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    input[type='range'] {
-      flex: 1;
-      accent-color: #58f;
-    }
-
-    .val {
-      font-size: 12px;
-      min-width: 32px;
-      text-align: right;
-      color: #8cf;
-    }
-
-    .presets {
-      margin-bottom: 14px;
-    }
-
-    .presets label {
-      margin-bottom: 6px;
-    }
-
-    .preset-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .preset-btn {
-      background: rgba(100, 140, 255, 0.12);
-      border: 1px solid rgba(100, 140, 255, 0.3);
-      border-radius: 6px;
-      color: #adf;
-      font-size: 12px;
-      padding: 4px 10px;
-      cursor: pointer;
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      transition: background 0.15s, border-color 0.15s;
-    }
-
-    .preset-btn:hover {
-      background: rgba(100, 140, 255, 0.25);
-      border-color: rgba(100, 140, 255, 0.5);
-    }
-
-    .preset-btn.active {
-      background: rgba(100, 140, 255, 0.35);
-      border-color: #58f;
-      color: #fff;
-    }
-
-    .section {
-      border-top: 1px solid rgba(100, 140, 255, 0.15);
-      padding-top: 12px;
-      margin-top: 12px;
-    }
-
-    .section h3 {
-      font-size: 13px;
-      margin: 0 0 8px;
-      color: #7af;
-    }
-  `;
+      .preset-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-xs);
+      }
+    `,
+  ];
 
   private emit(key: string, value: number) {
     this.dispatchEvent(
@@ -182,7 +120,7 @@ export class ControlPanel extends LitElement {
             ${PRESETS.map(
               (p) => html`
                 <button
-                  class="preset-btn ${p.n === n && p.l === l && p.m === m ? 'active' : ''}"
+                  class="btn ${p.n === n && p.l === l && p.m === m ? 'active' : ''}"
                   @click=${() => this.applyPreset(p)}
                 >${p.label}</button>
               `,
@@ -190,7 +128,7 @@ export class ControlPanel extends LitElement {
           </div>
         </div>
 
-        <div class="section">
+        <div class="section-divider">
           <h3>Quantum Numbers</h3>
           ${this.sliderFromDef('n', PARAM_DEFS.n!, n)}
           ${this.sliderFromDef('l', PARAM_DEFS.l!, l, 0, n - 1)}

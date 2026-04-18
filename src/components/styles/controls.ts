@@ -3,19 +3,19 @@ import { css } from 'lit';
 export const controls = css`
   label {
     display: block;
-    font-size: var(--fs-base);
-    margin-bottom: var(--sp-2);
-    color: var(--c-text-label);
+    font-size: var(--fs-sm);
+    margin-bottom: var(--sp-xs);
+    color: var(--c-text-muted);
   }
 
   .control-group {
-    margin-bottom: var(--sp-7);
+    margin-bottom: var(--sp-md);
   }
 
   .row {
     display: flex;
     align-items: center;
-    gap: var(--sp-4);
+    gap: var(--sp-sm);
   }
 
   input[type='range'] {
@@ -24,22 +24,22 @@ export const controls = css`
   }
 
   .val {
-    font-size: var(--fs-base);
+    font-size: var(--fs-sm);
     min-width: 32px;
     text-align: right;
-    color: var(--c-accent-value);
+    color: var(--c-accent-glow);
   }
 
   .toggle-row {
     display: flex;
     align-items: center;
-    gap: var(--sp-4);
-    margin-bottom: var(--sp-4);
+    gap: var(--sp-sm);
+    margin-bottom: var(--sp-sm);
   }
 
   .toggle-row label {
-    font-size: var(--fs-base);
-    color: var(--c-text-label);
+    font-size: var(--fs-sm);
+    color: var(--c-text-muted);
     margin: 0;
   }
 
@@ -50,10 +50,10 @@ export const controls = css`
   input[type='number'] {
     width: 100%;
     background: var(--c-bg-input);
-    border: 1px solid var(--c-border-light);
+    border: 1px solid var(--c-border);
     border-radius: var(--radius-sm);
-    color: var(--c-accent-value);
-    font-size: var(--fs-base);
+    color: var(--c-accent-glow);
+    font-size: var(--fs-sm);
     padding: 3px 6px;
     text-align: center;
     font-family: var(--font-family);
@@ -67,10 +67,10 @@ export const controls = css`
   select {
     width: 100%;
     background: var(--c-bg-input);
-    border: 1px solid var(--c-border-light);
+    border: 1px solid var(--c-border);
     border-radius: var(--radius-sm);
-    color: var(--c-accent-value);
-    font-size: var(--fs-base);
+    color: var(--c-accent-glow);
+    font-size: var(--fs-sm);
     padding: 5px 6px;
     font-family: var(--font-family);
   }

@@ -1,6 +1,6 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { theme } from './styles/index.js';
+import { theme, layout } from './styles/index.js';
 
 @customElement('collapsible-panel')
 export class CollapsiblePanel extends LitElement {
@@ -9,14 +9,15 @@ export class CollapsiblePanel extends LitElement {
 
   static styles = [
     ...theme,
+    layout,
     css`
       :host { display: block; }
 
       .panel {
-        background: var(--c-bg-panel);
+        background: var(--c-bg);
         backdrop-filter: blur(8px);
         border: 1px solid var(--c-border);
-        border-radius: var(--radius-xl);
+        border-radius: var(--radius-lg);
         width: var(--panel-width);
         color: var(--c-text);
         font-family: var(--font-family);
@@ -27,19 +28,17 @@ export class CollapsiblePanel extends LitElement {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: var(--sp-7) var(--sp-9);
+        padding: var(--sp-md) var(--sp-xl);
         cursor: pointer;
         user-select: none;
       }
 
       .header:hover { background: var(--c-bg-hover); }
 
-      h2 { font-size: var(--fs-lg); margin: 0; color: var(--c-accent-heading); }
-
       .chevron {
-        font-size: var(--fs-base);
-        color: var(--c-accent-heading);
-        transition: transform var(--transition-slow) var(--ease-default);
+        font-size: var(--fs-sm);
+        color: var(--c-accent-soft);
+        transition: transform var(--transition-slow) ease;
       }
 
       .chevron.open { transform: rotate(180deg); }
@@ -47,7 +46,7 @@ export class CollapsiblePanel extends LitElement {
       .body {
         max-height: 0;
         overflow: hidden;
-        transition: max-height var(--transition-slowest) var(--ease-default);
+        transition: max-height var(--transition-slow) ease;
       }
 
       .body.open {
@@ -55,7 +54,7 @@ export class CollapsiblePanel extends LitElement {
         overflow-y: auto;
       }
 
-      .content { padding: 0 var(--sp-9) var(--sp-9); }
+      .content { padding: 0 var(--sp-xl) var(--sp-xl); }
     `,
   ];
 

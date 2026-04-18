@@ -4,7 +4,7 @@ export { spacing } from './spacing.js';
 export { animations } from './animations.js';
 export { controls } from './controls.js';
 export { buttons } from './buttons.js';
-export { sections } from './sections.js';
+export { layout } from './layout.js';
 
 import { colors } from './colors.js';
 import { typography } from './typography.js';

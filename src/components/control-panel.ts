@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import type { OrbitalParams } from '../types.js';
 import { PARAM_DEFS } from '../config/params.js';
 import type { SliderDef } from '../config/params.js';
-import { theme, controls, buttons, sections } from './styles/index.js';
+import { theme, controls, buttons, layout } from './styles/index.js';
 import './collapsible-panel.js';
 
 interface OrbitalPreset {
@@ -37,22 +37,22 @@ export class ControlPanel extends LitElement {
     ...theme,
     controls,
     buttons,
-    sections,
+    layout,
     css`
       :host {
         position: absolute;
-        top: var(--sp-8);
-        left: var(--sp-8);
+        top: var(--sp-lg);
+        left: var(--sp-lg);
         z-index: 10;
       }
 
-      .presets { margin-bottom: var(--sp-7); }
-      .presets label { margin-bottom: var(--sp-3); }
+      .presets { margin-bottom: var(--sp-md); }
+      .presets label { margin-bottom: var(--sp-xs); }
 
       .preset-grid {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--sp-3);
+        gap: var(--sp-xs);
       }
     `,
   ];

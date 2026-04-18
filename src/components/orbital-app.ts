@@ -46,10 +46,10 @@ export class OrbitalApp extends LitElement {
 
       .info {
         position: absolute;
-        bottom: var(--sp-8);
-        left: var(--sp-8);
+        bottom: var(--sp-lg);
+        left: var(--sp-lg);
         font-size: var(--fs-sm);
-        color: var(--c-text-subtle);
+        color: var(--c-text-dim);
         font-family: var(--font-family);
       }
 
@@ -57,21 +57,21 @@ export class OrbitalApp extends LitElement {
         display: flex;
         position: fixed;
         inset: 0;
-        background: var(--c-bg-dark);
+        background: #111;
         justify-content: center;
         align-items: center;
         flex-direction: column;
-        font-size: var(--fs-2xl);
+        font-size: 20px;
         color: var(--c-text-error);
         text-align: center;
-        padding: var(--sp-12);
+        padding: 40px;
         font-family: var(--font-family);
       }
 
       .no-webgpu .hint {
-        font-size: var(--fs-lg);
-        color: var(--c-text-muted);
-        margin-top: var(--sp-4);
+        font-size: var(--fs-md);
+        color: var(--c-text-dim);
+        margin-top: var(--sp-sm);
       }
     `,
   ];

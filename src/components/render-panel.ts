@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import type { OrbitalParams } from '../types.js';
 import { PARAM_DEFS } from '../config/params.js';
 import type { SliderDef } from '../config/params.js';
-import { theme, controls, buttons, sections } from './styles/index.js';
+import { theme, controls, buttons, layout } from './styles/index.js';
 import './collapsible-panel.js';
 
 @customElement('render-panel')
@@ -14,19 +14,19 @@ export class RenderPanel extends LitElement {
     ...theme,
     controls,
     buttons,
-    sections,
+    layout,
     css`
       :host {
         position: absolute;
-        top: var(--sp-8);
-        right: var(--sp-8);
+        top: var(--sp-lg);
+        right: var(--sp-lg);
         z-index: 10;
       }
 
       .axis-buttons {
         display: flex;
-        gap: var(--sp-3);
-        margin-bottom: var(--sp-4);
+        gap: var(--sp-xs);
+        margin-bottom: var(--sp-sm);
       }
 
       .btn-sm.x { color: var(--c-axis-x); border-color: var(--c-axis-x-dim); }
@@ -35,7 +35,7 @@ export class RenderPanel extends LitElement {
 
       .cut-buttons {
         display: flex;
-        gap: var(--sp-3);
+        gap: var(--sp-xs);
       }
 
       .cut-x { color: var(--c-axis-x); }

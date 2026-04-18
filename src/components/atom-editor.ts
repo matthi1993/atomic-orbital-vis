@@ -5,7 +5,7 @@ import { configurationString } from '../physics/electron-config.js';
 import type { OrbitalOccupancy } from '../physics/electron-config.js';
 import { getElement, CATEGORY_COLORS } from '../config/elements.js';
 import type { ElementData } from '../config/elements.js';
-import { theme, controls, sections } from './styles/index.js';
+import { theme, controls, layout } from './styles/index.js';
 import './collapsible-panel.js';
 import './periodic-table-modal.js';
 
@@ -45,19 +45,19 @@ export class AtomEditor extends LitElement {
   static styles = [
     ...theme,
     controls,
-    sections,
+    layout,
     css`
       :host {
         position: absolute;
-        top: var(--sp-8);
-        left: var(--sp-8);
+        top: var(--sp-lg);
+        left: var(--sp-lg);
         z-index: 10;
       }
 
       .grid {
         display: grid;
         grid-template-columns: 100px 1fr 44px;
-        gap: var(--sp-3) var(--sp-4);
+        gap: var(--sp-xs) var(--sp-sm);
         align-items: center;
       }
 
@@ -70,43 +70,43 @@ export class AtomEditor extends LitElement {
       .atom-id {
         grid-column: 1 / -1;
         font-size: var(--fs-sm);
-        color: var(--c-text-faint);
+        color: var(--c-text-dim);
         text-align: center;
-        margin-bottom: var(--sp-2);
+        margin-bottom: var(--sp-xs);
       }
 
-      .presets { margin-bottom: var(--sp-7); }
-      .presets label { margin-bottom: var(--sp-3); }
+      .presets { margin-bottom: var(--sp-md); }
+      .presets label { margin-bottom: var(--sp-xs); }
 
       .element-btn {
         width: 100%;
         display: flex;
         align-items: center;
-        gap: var(--sp-5);
-        background: var(--c-bg-config);
-        border: 1px solid var(--c-border-light);
-        border-radius: var(--radius-lg);
-        color: var(--c-text-secondary);
-        padding: var(--sp-4) var(--sp-6);
+        gap: var(--sp-sm);
+        background: var(--c-bg-hover);
+        border: 1px solid var(--c-border);
+        border-radius: var(--radius-md);
+        color: var(--c-text);
+        padding: var(--sp-sm) var(--sp-md);
         cursor: pointer;
         font-family: var(--font-family);
-        transition: background var(--transition-base), border-color var(--transition-base);
+        transition: background var(--transition-fast), border-color var(--transition-fast);
       }
 
       .element-btn:hover {
-        background: var(--c-btn-bg-hover);
-        border-color: var(--c-border-btn-hover);
+        background: rgba(100, 140, 255, 0.25);
+        border-color: var(--c-border-hover);
       }
 
       .element-btn .el-symbol {
-        font-size: var(--fs-3xl);
+        font-size: 22px;
         font-weight: var(--fw-bold);
         min-width: 36px;
         text-align: center;
-        padding: var(--sp-1) var(--sp-3);
+        padding: 2px 6px;
         border-radius: 5px;
         line-height: 1.2;
-        color: var(--c-text-white);
+        color: #fff;
       }
 
       .element-btn .el-info {
@@ -115,31 +115,19 @@ export class AtomEditor extends LitElement {
         line-height: 1.3;
       }
 
-      .element-btn .el-name { font-size: var(--fs-md); color: var(--c-text-tertiary); }
+      .element-btn .el-name { font-size: var(--fs-sm); color: var(--c-text-muted); }
       .element-btn .el-z { font-size: var(--fs-xs); color: var(--c-text-dim); }
-      .element-btn .el-arrow { margin-left: auto; font-size: var(--fs-lg); color: var(--c-text-inactive); }
+      .element-btn .el-arrow { margin-left: auto; font-size: var(--fs-md); color: var(--c-text-dim); }
 
-      .electron-config {
-        grid-column: 1 / -1;
-        font-size: var(--fs-md);
-        color: var(--c-accent-light);
-        text-align: center;
-        padding: var(--sp-4) var(--sp-2);
-        background: var(--c-bg-config);
-        border-radius: var(--radius-md);
-        letter-spacing: 0.5px;
-        font-family: var(--font-family);
-        line-height: 1.6;
-        word-break: break-word;
-      }
+      .info-box { grid-column: 1 / -1; }
 
       .orbital-select-wrap {
         grid-column: 1 / -1;
-        margin-top: var(--sp-2);
+        margin-top: var(--sp-xs);
       }
 
       .orbital-select-wrap label {
-        margin-bottom: var(--sp-2);
+        margin-bottom: var(--sp-xs);
         text-align: left;
       }
     `,
@@ -240,7 +228,7 @@ export class AtomEditor extends LitElement {
           <div class="atom-id">${atom.id} · Z=${atom.protons} · e⁻=${atom.electrons}</div>
 
           <div class="section-label">Electron Configuration</div>
-          <div class="electron-config">${configurationString(atom.electrons)}</div>
+          <div class="info-box">${configurationString(atom.electrons)}</div>
 
           <div class="orbital-select-wrap">
             <label>Render Orbital</label>

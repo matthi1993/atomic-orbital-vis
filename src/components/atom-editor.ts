@@ -22,7 +22,8 @@ export interface AtomPresetChange {
 
 export interface AtomOrbitalSelect {
   atomId: string;
-  orbitalIndex: number | null; // null = all
+  layer: string;                // 'outer', 'all', or subshell key like '1-0'
+  orbitalIndex: number | null;  // null = all in layer
 }
 
 /** Element preset: ground-state outermost orbital for the first 10 elements */
@@ -175,11 +176,11 @@ export class AtomEditor extends LitElement {
     this.emit(key, +(e.target as HTMLInputElement).value);
   }
 
-  private emitOrbitalSelect(index: number | null) {
+  private emitOrbitalSelect(layer: string, index: number | null) {
     if (!this.atom) return;
     this.dispatchEvent(
       new CustomEvent('atom-orbital-select', {
-        detail: { atomId: this.atom.id, orbitalIndex: index } satisfies AtomOrbitalSelect,
+        detail: { atomId: this.atom.id, layer, orbitalIndex: index } satisfies AtomOrbitalSelect,
         bubbles: true,
         composed: true,
       }),
@@ -227,17 +228,34 @@ export class AtomEditor extends LitElement {
         <div class="grid">
           <div class="atom-id">${atom.id} · Z=${atom.protons} · e⁻=${atom.electrons}</div>
 
-          <div class="section-label">Electron Configuration</div>
+          <div class="section-label">Orbitals</div>
           <div class="info-box">${configurationString(atom.electrons)}</div>
 
           <div class="orbital-select-wrap">
-            <label>Render Orbital</label>
+            <label>Layer</label>
             <select
               @change=${(e: Event) => {
                 const val = (e.target as HTMLSelectElement).value;
-                this.emitOrbitalSelect(val === 'all' ? null : parseInt(val, 10));
+                this.emitOrbitalSelect(val, null);
               }}>
-              <option value="all" ?selected=${atom.selectedOrbitalIndex === null}>All outer orbitals</option>
+              <option value="outer" ?selected=${atom.selectedLayer === 'outer'}>Outer</option>
+              <option value="all" ?selected=${atom.selectedLayer === 'all'}>All layers</option>
+              ${atom.subshellList.map(s => html`
+                <option value=${s.key} ?selected=${atom.selectedLayer === s.key}>
+                  ${s.label} — ${s.totalElectrons}e⁻
+                </option>
+              `)}
+            </select>
+          </div>
+
+          <div class="orbital-select-wrap">
+            <label>Orbital</label>
+            <select
+              @change=${(e: Event) => {
+                const val = (e.target as HTMLSelectElement).value;
+                this.emitOrbitalSelect(atom.selectedLayer, val === 'all' ? null : parseInt(val, 10));
+              }}>
+              <option value="all" ?selected=${atom.selectedOrbitalIndex === null}>All in layer</option>
               ${atom.occupiedOrbitals.map((o, i) => html`
                 <option value=${i} ?selected=${atom.selectedOrbitalIndex === i}>
                   ${this.formatOrbital(o)} — ${o.electrons}e⁻

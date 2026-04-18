@@ -70,6 +70,32 @@ export function valenceOrbitals(numElectrons: number): OrbitalOccupancy[] {
   return all.filter(o => o.n === last.n && o.l === last.l);
 }
 
+export interface Subshell {
+  n: number;
+  l: number;
+  key: string;            // e.g. '1-0', '2-1'
+  label: string;          // e.g. '1s', '2p'
+  totalElectrons: number;
+}
+
+/**
+ * Return the list of occupied subshells in Aufbau order with total electron counts.
+ */
+export function subshells(numElectrons: number): Subshell[] {
+  const orbitals = electronConfiguration(numElectrons);
+  const map = new Map<string, Subshell>();
+  const order: string[] = [];
+  for (const o of orbitals) {
+    const key = `${o.n}-${o.l}`;
+    if (!map.has(key)) {
+      order.push(key);
+      map.set(key, { n: o.n, l: o.l, key, label: `${o.n}${SUBSHELL_LABELS[o.l]}`, totalElectrons: 0 });
+    }
+    map.get(key)!.totalElectrons += o.electrons;
+  }
+  return order.map(k => map.get(k)!);
+}
+
 /**
  * Format the electron configuration as "1s² 2s² 2p²" etc.
  */

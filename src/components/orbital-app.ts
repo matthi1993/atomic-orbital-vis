@@ -228,6 +228,8 @@ export class OrbitalApp extends LitElement {
 
     atom.setProtons(preset.Z);
     atom.setElectrons(preset.e); // n/l/m auto-derived from electron config
+    atom.setSelectedLayer('outer');
+    atom.setSelectedOrbitalIndex(null);
 
     this.atomManager.markAllDirty();
     this.regenerate();
@@ -235,10 +237,11 @@ export class OrbitalApp extends LitElement {
   };
 
   private onAtomOrbitalSelect = (e: CustomEvent<AtomOrbitalSelect>) => {
-    const { atomId, orbitalIndex } = e.detail;
+    const { atomId, layer, orbitalIndex } = e.detail;
     const atom = this.atomManager.getAtom(atomId);
     if (!atom) return;
 
+    atom.setSelectedLayer(layer);
     atom.setSelectedOrbitalIndex(orbitalIndex);
     this.atomManager.markAllDirty();
     this.regenerate();

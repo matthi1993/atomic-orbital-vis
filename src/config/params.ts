@@ -85,7 +85,7 @@ export const DEFAULT_PARAMS: OrbitalParams = {
   threshold: 0.015,
   scale: 10.0,
   pointSize: 10.0,
-  rotSpeed: 0,
+  rotSpeed: 0.25,
   electronOpacity: 0.5,
   opaqueMode: true,
   orthographic: true,

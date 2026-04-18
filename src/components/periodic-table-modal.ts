@@ -2,150 +2,137 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { ELEMENTS, CATEGORY_COLORS, CATEGORY_LABELS } from '../config/elements.js';
 import type { ElementData, ElementCategory } from '../config/elements.js';
+import { theme } from './styles/index.js';
 
 @customElement('periodic-table-modal')
 export class PeriodicTableModal extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
   @property({ type: Number }) selectedZ = 0;
 
-  static styles = css`
-    :host {
-      display: none;
-    }
-    :host([open]) {
-      display: block;
-    }
+  static styles = [
+    ...theme,
+    css`
+      :host { display: none; }
+      :host([open]) { display: block; }
 
-    .backdrop {
-      position: fixed;
-      inset: 0;
-      z-index: 1000;
-      background: rgba(0, 0, 0, 0.75);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      backdrop-filter: blur(4px);
-    }
+      .backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: var(--c-bg-backdrop);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+      }
 
-    .modal {
-      background: #1a1a2e;
-      border: 1px solid rgba(100, 140, 255, 0.25);
-      border-radius: 12px;
-      padding: 20px 24px 16px;
-      max-width: 95vw;
-      max-height: 95vh;
-      overflow: auto;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-    }
+      .modal {
+        background: var(--c-bg-solid);
+        border: 1px solid var(--c-border);
+        border-radius: var(--radius-xl);
+        padding: var(--sp-9) var(--sp-10) var(--sp-8);
+        max-width: 95vw;
+        max-height: 95vh;
+        overflow: auto;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+      }
 
-    h2 {
-      margin: 0 0 14px;
-      font-size: 16px;
-      font-weight: 500;
-      color: #aac;
-      text-align: center;
-      letter-spacing: 1px;
-    }
+      h2 {
+        margin: 0 0 var(--sp-7);
+        font-size: var(--fs-xl);
+        font-weight: var(--fw-medium);
+        color: var(--c-text-label);
+        text-align: center;
+        letter-spacing: 1px;
+      }
 
-    /* ── Main grid: 18 columns ─────────────────────────── */
-    .table {
-      display: grid;
-      grid-template-columns: repeat(18, 46px);
-      grid-template-rows: repeat(7, 46px) 12px repeat(2, 46px);
-      gap: 2px;
-    }
+      .table {
+        display: grid;
+        grid-template-columns: repeat(18, 46px);
+        grid-template-rows: repeat(7, 46px) 12px repeat(2, 46px);
+        gap: var(--sp-1);
+      }
 
-    /* Row 8 is just a visual gap between main table and f-block */
+      .cell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+        position: relative;
+        user-select: none;
+      }
 
-    .cell {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      border-radius: 4px;
-      cursor: pointer;
-      border: 1px solid transparent;
-      transition: border-color 0.12s, transform 0.12s, box-shadow 0.12s;
-      position: relative;
-      user-select: none;
-    }
-    .cell:hover {
-      border-color: rgba(255,255,255,0.5);
-      transform: scale(1.15);
-      z-index: 2;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-    }
-    .cell.selected {
-      border-color: #fff;
-      box-shadow: 0 0 8px rgba(100,180,255,0.7);
-    }
+      .cell:hover {
+        border-color: var(--c-border-cell-hover);
+        transform: scale(1.15);
+        z-index: 2;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+      }
 
-    .cell .z {
-      font-size: 8px;
-      line-height: 1;
-      opacity: 0.7;
-      color: #fff;
-    }
-    .cell .sym {
-      font-size: 14px;
-      font-weight: 600;
-      line-height: 1.2;
-      color: #fff;
-    }
+      .cell.selected {
+        border-color: var(--c-text-white);
+        box-shadow: 0 0 8px rgba(100, 180, 255, 0.7);
+      }
 
-    /* Placeholder markers for La-Lu / Ac-Lr in main table */
-    .marker {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 4px;
-      font-size: 8px;
-      color: #888;
-      letter-spacing: 0.3px;
-    }
+      .cell .z { font-size: var(--fs-2xs); line-height: 1; opacity: 0.7; color: var(--c-text-white); }
+      .cell .sym { font-size: var(--fs-lg); font-weight: var(--fw-semibold); line-height: 1.2; color: var(--c-text-white); }
 
-    /* ── Legend ─────────────────────────────────────────── */
-    .legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px 14px;
-      justify-content: center;
-      margin-top: 14px;
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 10px;
-      color: #99a;
-    }
-    .legend-swatch {
-      width: 12px;
-      height: 12px;
-      border-radius: 3px;
-    }
+      .marker {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-sm);
+        font-size: var(--fs-2xs);
+        color: var(--c-text-muted);
+        letter-spacing: 0.3px;
+      }
 
-    /* ── Tooltip on hover ──────────────────────────────── */
-    .cell .tooltip {
-      display: none;
-      position: absolute;
-      bottom: calc(100% + 6px);
-      left: 50%;
-      transform: translateX(-50%);
-      background: #222;
-      color: #dde;
-      font-size: 11px;
-      padding: 4px 8px;
-      border-radius: 4px;
-      white-space: nowrap;
-      pointer-events: none;
-      z-index: 10;
-      border: 1px solid rgba(100,140,255,0.3);
-    }
-    .cell:hover .tooltip {
-      display: block;
-    }
-  `;
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--sp-4) var(--sp-7);
+        justify-content: center;
+        margin-top: var(--sp-7);
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: var(--fs-xs);
+        color: var(--c-text-legend);
+      }
+
+      .legend-swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: var(--radius-xs);
+      }
+
+      .cell .tooltip {
+        display: none;
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--c-bg-tooltip);
+        color: var(--c-text-secondary);
+        font-size: var(--fs-sm);
+        padding: var(--sp-2) var(--sp-4);
+        border-radius: var(--radius-sm);
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 10;
+        border: 1px solid var(--c-border-light);
+      }
+
+      .cell:hover .tooltip { display: block; }
+    `,
+  ];
 
   connectedCallback() {
     super.connectedCallback();

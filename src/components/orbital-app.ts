@@ -8,6 +8,7 @@ import { SceneManager } from '../renderer/scene-manager.js';
 import { PointCloud } from '../renderer/point-cloud.js';
 import { Nucleus } from '../renderer/nucleus.js';
 import { AxesPlots } from '../renderer/axes-plots.js';
+import { theme } from './styles/index.js';
 import './render-panel.js';
 import './atom-editor.js';
 import type { AtomEditorChange, AtomPresetChange, AtomOrbitalSelect } from './atom-editor.js';
@@ -30,53 +31,50 @@ export class OrbitalApp extends LitElement {
   private generating = false;
   private animationId = 0;
 
-  static styles = css`
-    :host {
-      display: block;
-      width: 100vw;
-      height: 100vh;
-      position: relative;
-    }
+  static styles = [
+    ...theme,
+    css`
+      :host {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        position: relative;
+      }
 
-    .canvas-container {
-      width: 100%;
-      height: 100%;
-    }
+      .canvas-container { width: 100%; height: 100%; }
+      .canvas-container canvas { display: block; }
 
-    .canvas-container canvas {
-      display: block;
-    }
+      .info {
+        position: absolute;
+        bottom: var(--sp-8);
+        left: var(--sp-8);
+        font-size: var(--fs-sm);
+        color: var(--c-text-subtle);
+        font-family: var(--font-family);
+      }
 
-    .info {
-      position: absolute;
-      bottom: 16px;
-      left: 16px;
-      font-size: 11px;
-      color: #556;
-      font-family: 'Segoe UI', system-ui, sans-serif;
-    }
+      .no-webgpu {
+        display: flex;
+        position: fixed;
+        inset: 0;
+        background: var(--c-bg-dark);
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        font-size: var(--fs-2xl);
+        color: var(--c-text-error);
+        text-align: center;
+        padding: var(--sp-12);
+        font-family: var(--font-family);
+      }
 
-    .no-webgpu {
-      display: flex;
-      position: fixed;
-      inset: 0;
-      background: #111;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      font-size: 20px;
-      color: #f66;
-      text-align: center;
-      padding: 40px;
-      font-family: 'Segoe UI', system-ui, sans-serif;
-    }
-
-    .no-webgpu .hint {
-      font-size: 14px;
-      color: #888;
-      margin-top: 8px;
-    }
-  `;
+      .no-webgpu .hint {
+        font-size: var(--fs-lg);
+        color: var(--c-text-muted);
+        margin-top: var(--sp-4);
+      }
+    `,
+  ];
 
   render() {
     if (!this.webgpuAvailable) {

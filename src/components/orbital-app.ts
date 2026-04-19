@@ -49,13 +49,55 @@ export class OrbitalApp extends LitElement {
       .canvas-container { width: 100%; height: 100%; }
       .canvas-container canvas { display: block; }
 
-      .info {
+      .bottom-right {
         position: absolute;
         bottom: var(--sp-lg);
-        left: var(--sp-lg);
+        right: var(--sp-lg);
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: var(--sp-sm);
+        font-family: var(--font-family);
+        pointer-events: none;
+      }
+
+      .legend {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        background: rgba(10, 10, 30, 0.7);
+        border: 1px solid var(--c-border-subtle);
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: var(--fs-sm);
+        color: var(--c-text-muted);
+      }
+
+      .legend-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--c-text-dim);
+        margin-bottom: 2px;
+      }
+
+      .legend-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .legend-swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        flex-shrink: 0;
+      }
+
+      .info {
         font-size: var(--fs-sm);
         color: var(--c-text-dim);
-        font-family: var(--font-family);
       }
 
       .no-webgpu {
@@ -133,7 +175,28 @@ export class OrbitalApp extends LitElement {
         @param-change=${this.onParamChange}
         @camera-view=${this.onCameraView}
       ></render-panel>
-      <div class="info">Drag to rotate · Scroll to zoom · Click nucleus to select · WebGPU Compute Shader</div>
+      <div class="bottom-right">
+        <div class="legend">
+          <div class="legend-title">Orbital colours</div>
+          <div class="legend-row">
+            <span class="legend-swatch" style="background: rgb(51, 102, 255)"></span>
+            <span>Half-filled (ψ +)</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-swatch" style="background: rgb(204, 77, 25)"></span>
+            <span>Half-filled (ψ −)</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-swatch" style="background: rgb(38, 255, 255)"></span>
+            <span>Full (ψ +)</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-swatch" style="background: rgb(255, 230, 13)"></span>
+            <span>Full (ψ −)</span>
+          </div>
+        </div>
+        <div class="info">Drag to rotate · Scroll to zoom · Click nucleus to select</div>
+      </div>
     `;
   }
 

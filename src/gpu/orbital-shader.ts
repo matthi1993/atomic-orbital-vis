@@ -183,9 +183,11 @@ export const orbitalShaderCode = /* wgsl */`
       //    Different (n,l,m) → incoherent (orthogonal orbitals)
       var psi_group: array<f32, 32>;
       var grp_ref_spin: array<f32, 32>;
+      var grp_max_electrons: array<f32, 32>;
       for (var g: i32 = 0; g < 32; g++) {
         psi_group[g] = 0.0;
         grp_ref_spin[g] = 0.0;   // 0 = not yet assigned
+        grp_max_electrons[g] = 0.0;
       }
 
       for (var j: i32 = 0; j < num_atoms; j++) {
@@ -225,11 +227,13 @@ export const orbitalShaderCode = /* wgsl */`
         }
 
         psi_group[gid] += phase * weight * psi_j;
+        grp_max_electrons[gid] = max(grp_max_electrons[gid], aj.electrons);
       }
 
       // Incoherent sum across groups: ρ = Σ_g |ψ_g|²
       var rho: f32 = 0.0;
       var dominant_psi: f32 = 0.0;
+      var dominant_gid: i32 = 0;
       var max_psi2: f32 = 0.0;
       for (var g: i32 = 0; g < num_groups_i; g++) {
         let pg = psi_group[g];
@@ -238,6 +242,7 @@ export const orbitalShaderCode = /* wgsl */`
         if (pg2 > max_psi2) {
           max_psi2 = pg2;
           dominant_psi = pg;
+          dominant_gid = g;
         }
       }
 
@@ -254,12 +259,26 @@ export const orbitalShaderCode = /* wgsl */`
 
       pos = vec4<f32>(wx, wy, wz, 1.0);
 
-      // Colour by dominant group's ψ sign: blue = positive, orange/red = negative
+      // Colour by dominant group's ψ sign and fullness.
+      // Full orbitals (2e⁻): cyan / gold.  Half-filled (1e⁻): blue / orange.
       let t = pow(min(prob * 2.0, 1.0), 1.5);
+      let is_full = grp_max_electrons[dominant_gid] >= 2.0;
       if (dominant_psi >= 0.0) {
-        color = vec4<f32>(0.2 + 0.6 * t, 0.4 + 0.5 * t, 1.0, t);
+        if (is_full) {
+          // Full: vivid cyan
+          color = vec4<f32>(0.0 + 0.15 * t, 0.45 + 0.55 * t, 0.6 + 0.4 * t, t);
+        } else {
+          // Half-filled: vivid blue
+          color = vec4<f32>(0.05 + 0.15 * t, 0.15 + 0.25 * t, 0.6 + 0.4 * t, t);
+        }
       } else {
-        color = vec4<f32>(1.0, 0.3 + 0.4 * t, 0.2 + 0.3 * t, t);
+        if (is_full) {
+          // Full: vivid gold
+          color = vec4<f32>(0.7 + 0.3 * t, 0.5 + 0.4 * t, 0.0 + 0.05 * t, t);
+        } else {
+          // Half-filled: vivid orange-red
+          color = vec4<f32>(0.7 + 0.3 * t, 0.12 + 0.18 * t, 0.02 + 0.08 * t, t);
+        }
       }
       break;
     }

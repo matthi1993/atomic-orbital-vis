@@ -92,6 +92,8 @@ export const DEFAULT_PARAMS: OrbitalParams = {
   orthographic: false,
   showAxes: true,
   showElectrons: true,
+  showOutlines: true,
+  showHandles: true,
   fixedScreenSize: true,
   cutPlane: 'none',
 };

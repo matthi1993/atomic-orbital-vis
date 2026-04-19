@@ -1,6 +1,7 @@
 import type { AtomManager } from '../physics/atom-manager.js';
 import type { OrbitalPipeline } from '../gpu/orbital-pipeline.js';
 import type { PointCloud } from '../renderer/point-cloud.js';
+import type { Nucleus } from '../renderer/nucleus.js';
 import type { AxesPlots } from '../renderer/axes-plots.js';
 import type { SceneManager } from '../renderer/scene-manager.js';
 import type { OrbitalParams } from '../types.js';
@@ -17,6 +18,7 @@ export class ParticleService {
     private atomManager: AtomManager,
     private orbitalPipeline: OrbitalPipeline,
     private pointCloud: PointCloud,
+    private nucleus: Nucleus,
     private axesPlots: AxesPlots,
     private sceneManager: SceneManager,
   ) {}
@@ -53,6 +55,16 @@ export class ParticleService {
       this.axesPlots.update(selected.n, selected.l, selected.m, scale);
     }
     this.axesPlots.showAxes = params.showAxes;
+
+    // Update ring radii to match rendered orbital extents
+    // Visual extent factor (< sampling extent of 4) for a tighter fit
+    const RING_EXTENT = 2.5;
+    for (const atom of this.atomManager.all) {
+      const orbitals = atom.renderOrbitals;
+      const maxN = orbitals.reduce((mx, o) => Math.max(mx, o.n), 1);
+      const ringRadius = Math.max(scale * RING_EXTENT * maxN * maxN, 3.5);
+      this.nucleus.updateRadius(atom.id, ringRadius);
+    }
 
     this.generating = false;
   }

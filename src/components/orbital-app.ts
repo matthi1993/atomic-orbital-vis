@@ -74,6 +74,11 @@ export class OrbitalApp extends LitElement {
   private _translationDragStart: [number, number, number] | null = null;
   private _rotationDragStart: [number, number, number] | null = null;
 
+  /* Click vs drag detection for selection */
+  private _pointerDownPos: { x: number; y: number } | null = null;
+  private _pointerDownResult: import('../services/interaction-service.js').PointerDownResult | null = null;
+  private static readonly CLICK_THRESHOLD = 5; // px
+
   static styles = [
     ...theme,
     css`
@@ -258,7 +263,7 @@ export class OrbitalApp extends LitElement {
     // Wire up domain services
     this.selectionService = new SelectionService(this.atomManager, nucleus, axisHandles, rotationHandles, this.sceneManager);
     this.atomService = new AtomService(this.atomManager, nucleus, axisHandles, rotationHandles, this.sceneManager, this.selectionService);
-    this.particleService = new ParticleService(this.atomManager, pipeline, pointCloud, axesPlots, this.sceneManager);
+    this.particleService = new ParticleService(this.atomManager, pipeline, pointCloud, nucleus, axesPlots, this.sceneManager);
     this.renderLoopService = new RenderLoopService(pointCloud, nucleus, axisHandles, rotationHandles, axesPlots, this.sceneManager);
     this.interactionService = new InteractionService(this.sceneManager, nucleus, axisHandles, rotationHandles);
 
@@ -324,21 +329,34 @@ export class OrbitalApp extends LitElement {
     const result = this.interactionService.handlePointerDown(e);
     if (result.type === 'handle' || result.type === 'rotation-handle') return;
 
-    if (result.type === 'nucleus') {
-      this.selectionService.select(result.atomId);
-    } else {
-      this.selectionService.deselect();
-    }
-    this.selectedAtomId = this.selectionService.selectedAtomId;
-    this.atomVersion++;
+    // Defer selection to pointerup so camera drags don't affect it
+    this._pointerDownPos = { x: e.clientX, y: e.clientY };
+    this._pointerDownResult = result;
   };
 
   private onPointerMove = (e: PointerEvent) => {
     this.interactionService.handlePointerMove(e);
   };
 
-  private onPointerUp = () => {
+  private onPointerUp = (e: PointerEvent) => {
     this.interactionService.handlePointerUp();
+
+    // Only select/deselect if pointer didn't move (click, not drag)
+    if (this._pointerDownPos && this._pointerDownResult) {
+      const dx = e.clientX - this._pointerDownPos.x;
+      const dy = e.clientY - this._pointerDownPos.y;
+      if (dx * dx + dy * dy < OrbitalApp.CLICK_THRESHOLD * OrbitalApp.CLICK_THRESHOLD) {
+        if (this._pointerDownResult.type === 'nucleus') {
+          this.selectionService.select(this._pointerDownResult.atomId);
+        } else {
+          this.selectionService.deselect();
+        }
+        this.selectedAtomId = this.selectionService.selectedAtomId;
+        this.atomVersion++;
+      }
+    }
+    this._pointerDownPos = null;
+    this._pointerDownResult = null;
   };
 
   private onAtomSelect = (e: CustomEvent<AtomSelectRequest>) => {
@@ -393,7 +411,8 @@ export class OrbitalApp extends LitElement {
       const atom = this.atomManager.getAtom(evt.atomId);
       if (atom) {
         this._translationDragStart = [...atom.position] as [number, number, number];
-        this.pointCloud.saveDragStart();
+        const centers = new Map(this.atomManager.all.map(a => [a.id, a.position] as const));
+        this.pointCloud.saveDragStart(centers, evt.atomId);
       }
     }
     this.atomService.handleDrag(evt);
@@ -406,6 +425,7 @@ export class OrbitalApp extends LitElement {
           atom.position[1] - this._translationDragStart[1],
           atom.position[2] - this._translationDragStart[2],
         );
+        this.sceneManager.markDirty();
       }
     }
     this.atomVersion++;
@@ -424,7 +444,8 @@ export class OrbitalApp extends LitElement {
       const atom = this.atomManager.getAtom(evt.atomId);
       if (atom) {
         this._rotationDragStart = [...atom.rotation] as [number, number, number];
-        this.pointCloud.saveDragStart();
+        const centers = new Map(this.atomManager.all.map(a => [a.id, a.position] as const));
+        this.pointCloud.saveDragStart(centers, evt.atomId);
       }
     }
     this.atomService.handleRotationDrag(evt);

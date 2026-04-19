@@ -146,6 +146,26 @@ export class RenderPanel extends LitElement {
             />
             <label for="showElectrons">Electron Cloud</label>
           </div>
+          <div class="toggle-row">
+            <input
+              type="checkbox"
+              id="showOutlines"
+              .checked=${p.showOutlines}
+              @change=${(e: Event) =>
+                this.emit('showOutlines', (e.target as HTMLInputElement).checked)}
+            />
+            <label for="showOutlines">Atom Outlines</label>
+          </div>
+          <div class="toggle-row">
+            <input
+              type="checkbox"
+              id="showHandles"
+              .checked=${p.showHandles}
+              @change=${(e: Event) =>
+                this.emit('showHandles', (e.target as HTMLInputElement).checked)}
+            />
+            <label for="showHandles">Handles</label>
+          </div>
         `)}
 
         ${this.renderSection('pointCloud', 'Point Cloud', html`

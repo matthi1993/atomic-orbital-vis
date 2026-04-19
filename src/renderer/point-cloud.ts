@@ -33,6 +33,8 @@ export class PointCloud {
 
   /* ─── Drag transform state ──────────────────────── */
   private dragOriginalPositions: Float32Array | null = null;
+  /** Bitmask: true for particles owned by the dragged atom. */
+  private dragOwnership: Uint8Array | null = null;
 
   constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
     this.scene = scene;
@@ -214,17 +216,52 @@ export class PointCloud {
 
   /* ─── Drag transform helpers ─────────────────────── */
 
-  /** Save current positions before a drag begins. */
-  saveDragStart(): void {
+  /**
+   * Save current positions before a drag begins.
+   * @param atomCenters Map of atom id → position for all atoms.
+   * @param dragAtomId  The atom being dragged.
+   */
+  saveDragStart(atomCenters?: Map<string, [number, number, number]>, dragAtomId?: string): void {
     if (this.storedPositions) {
       this.dragOriginalPositions = new Float32Array(this.storedPositions);
     }
+
+    // Compute per-particle ownership: 1 if closest to dragAtomId, 0 otherwise
+    this.dragOwnership = null;
+    if (atomCenters && dragAtomId && atomCenters.size > 1 && this.storedPositions) {
+      const ownership = new Uint8Array(this.count);
+      const centers = Array.from(atomCenters.entries());
+      for (let i = 0; i < this.count; i++) {
+        const px = this.storedPositions[i * 3];
+        const py = this.storedPositions[i * 3 + 1];
+        const pz = this.storedPositions[i * 3 + 2];
+        let bestDist = Infinity;
+        let bestId = '';
+        for (const [id, pos] of centers) {
+          const dx = px - pos[0], dy = py - pos[1], dz = pz - pos[2];
+          const d = dx * dx + dy * dy + dz * dz;
+          if (d < bestDist) { bestDist = d; bestId = id; }
+        }
+        ownership[i] = bestId === dragAtomId ? 1 : 0;
+      }
+      this.dragOwnership = ownership;
+    }
   }
 
-  /** Apply a translation offset to the mesh during drag. */
+  /** Apply a translation offset to owned particles during drag. */
   setDragTranslation(dx: number, dy: number, dz: number): void {
-    if (!this.mesh) return;
-    this.mesh.position.set(dx, dy, dz);
+    if (!this.dragOriginalPositions || !this.storedPositions) return;
+    const orig = this.dragOriginalPositions;
+    const out = this.storedPositions;
+    const own = this.dragOwnership;
+    for (let i = 0; i < this.count; i++) {
+      // If ownership is tracked, skip particles not owned by the dragged atom
+      if (own && !own[i]) continue;
+      out[i * 3]     = orig[i * 3]     + dx;
+      out[i * 3 + 1] = orig[i * 3 + 1] + dy;
+      out[i * 3 + 2] = orig[i * 3 + 2] + dz;
+    }
+    this.matrixDirty = true;
   }
 
   /** Apply a rotation delta to stored positions during drag. */
@@ -233,7 +270,9 @@ export class PointCloud {
     const orig = this.dragOriginalPositions;
     const out = this.storedPositions;
     const px = pivot[0], py = pivot[1], pz = pivot[2];
+    const own = this.dragOwnership;
     for (let i = 0; i < this.count; i++) {
+      if (own && !own[i]) continue;
       const vx = orig[i * 3] - px;
       const vy = orig[i * 3 + 1] - py;
       const vz = orig[i * 3 + 2] - pz;
@@ -251,8 +290,8 @@ export class PointCloud {
 
   /** Reset drag visual state. */
   clearDragTransform(): void {
-    if (this.mesh) this.mesh.position.set(0, 0, 0);
     this.dragOriginalPositions = null;
+    this.dragOwnership = null;
   }
 
   dispose(): void {

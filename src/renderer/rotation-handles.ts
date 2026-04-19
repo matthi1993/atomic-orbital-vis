@@ -104,6 +104,7 @@ export class RotationHandles {
   private root = new THREE.Group();
   private handles: RingHandle[] = [];
   private _visible = false;
+  private _enabled = true;
   private _atomId: string | null = null;
 
   /* Drag state */
@@ -133,11 +134,20 @@ export class RotationHandles {
     this._atomId = atomId;
     if (atomId && position) {
       this.root.position.set(...position);
-      this.root.visible = true;
-      this._visible = true;
+      this.root.visible = this._enabled;
+      this._visible = this._enabled;
     } else {
       this.root.visible = false;
       this._visible = false;
+    }
+  }
+
+  set enabled(v: boolean) {
+    if (this._enabled === v) return;
+    this._enabled = v;
+    if (this._atomId) {
+      this.root.visible = v;
+      this._visible = v;
     }
   }
 

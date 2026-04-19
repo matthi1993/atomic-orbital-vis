@@ -58,9 +58,12 @@ export class RenderLoopService {
     this.pointCloud.activeCamera = this.sceneManager.camera;
     this.sceneManager.autoRotateSpeed = p.rotSpeed;
     this.axesPlots.showAxes = p.showAxes;
+    this.nucleus.showRings = p.showOutlines;
+    this.axisHandles.enabled = p.showHandles;
+    this.rotationHandles.enabled = p.showHandles;
 
     this.pointCloud.updateIfNeeded();
-    this.nucleus.update(this.elapsedTime);
+    this.nucleus.update(this.elapsedTime, this.sceneManager.camera);
     this.axisHandles.updateScale(this.sceneManager.camera);
     this.rotationHandles.updateScale(this.sceneManager.camera);
     this.axesPlots.updateScale(this.sceneManager.camera);

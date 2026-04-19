@@ -65,13 +65,19 @@ export class AtomManager {
    * Build the atom config array expected by the GPU pipeline.
    * Expands each atom into its full electron configuration (all occupied orbitals).
    */
-  private buildAtomConfigs(scale: number): AtomGPUConfig[] {
+  /**
+   * Fixed sampling extent in Bohr radii — covers >99 % of |ψ|²·r².
+   * The visual size is handled by `uniforms.scale` in the GPU shader.
+   */
+  private static readonly SAMPLING_EXTENT = 4;
+
+  private buildAtomConfigs(): AtomGPUConfig[] {
     const configs: AtomGPUConfig[] = [];
     for (const atom of this.all) {
       const orbitals = atom.renderOrbitals;
       if (orbitals.length === 0) continue;
       for (const orbital of orbitals) {
-        const rMax = scale * orbital.n * orbital.n;
+        const rMax = AtomManager.SAMPLING_EXTENT * orbital.n * orbital.n;
         configs.push({
           n: orbital.n,
           l: orbital.l,
@@ -99,7 +105,7 @@ export class AtomManager {
       return this._molecularParticles;
     }
 
-    const atomConfigs = this.buildAtomConfigs(scale);
+    const atomConfigs = this.buildAtomConfigs();
 
     // Per-orbital maxPsi is already baked into each AtomGPUConfig.
     const data = await pipeline.generate(atomConfigs, particleCount, scale, threshold);

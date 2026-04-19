@@ -164,9 +164,10 @@ export const orbitalShaderCode = /* wgsl */`
       if (rand(&seed) > prob) { continue; }
 
       let sinTheta = sqrt(max(1.0 - cosTheta * cosTheta, 0.0));
-      let x = orbital.pos_x + r * sinTheta * cos(phi);
-      let y = orbital.pos_y + r * sinTheta * sin(phi);
-      let z = orbital.pos_z + r * cosTheta;
+      let s = uniforms.scale;
+      let x = orbital.pos_x + s * r * sinTheta * cos(phi);
+      let y = orbital.pos_y + s * r * sinTheta * sin(phi);
+      let z = orbital.pos_z + s * r * cosTheta;
 
       pos = vec4<f32>(x, y, z, 1.0);
       let t = min(prob * 2.0, 1.0);

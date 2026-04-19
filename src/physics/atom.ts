@@ -9,6 +9,11 @@ let nextId = 1;
  * Each atom has an independent set of quantum numbers and a 3D position,
  * plus proton/electron counts for display purposes.
  * Particle data is regenerated only when quantum numbers change (dirty flag).
+ *
+ * Spin convention:
+ *   _spinUp = true  → unpaired electrons are spin-up (+½) by default (Hund's rule)
+ *   _spinUp = false → unpaired electrons are spin-down (−½), flipped state
+ *   Paired electrons always have one of each spin.
  */
 export class Atom {
   readonly id: string;
@@ -22,6 +27,7 @@ export class Atom {
   private _particleData: GeneratedParticles | null = null;
   private _selectedLayer: string = 'outer'; // 'outer', 'all', or 'n-l' key
   private _selectedOrbitalIndex: number | null = null; // null = all in layer
+  private _spinUp: boolean; // true = unpaired electrons are spin-up (random at creation)
 
   constructor(n = 1, l = 0, m = 0, position: [number, number, number] = [0, 0, 0]) {
     this.id = `atom-${nextId++}`;
@@ -31,6 +37,7 @@ export class Atom {
     this._position = position;
     this._protons = 1;
     this._electrons = 1;
+    this._spinUp = Math.random() < 0.5;
   }
 
   get n(): number { return this._n; }
@@ -62,6 +69,8 @@ export class Atom {
     if (this._selectedOrbitalIndex === null || this._selectedOrbitalIndex >= layerOrbitals.length) return layerOrbitals;
     return [layerOrbitals[this._selectedOrbitalIndex]];
   }
+
+  get spinUp(): boolean { return this._spinUp; }
 
   get selectedLayer(): string { return this._selectedLayer; }
   get selectedOrbitalIndex(): number | null { return this._selectedOrbitalIndex; }
@@ -119,6 +128,12 @@ export class Atom {
   setParticleData(data: GeneratedParticles): void {
     this._particleData = data;
     this._dirty = false;
+  }
+
+  /** Flip the spin of ALL electrons in this atom. */
+  flipSpin(): void {
+    this._spinUp = !this._spinUp;
+    this._dirty = true;
   }
 
   markDirty(): void {

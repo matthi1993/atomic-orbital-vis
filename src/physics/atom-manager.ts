@@ -78,14 +78,27 @@ export class AtomManager {
       if (orbitals.length === 0) continue;
       for (const orbital of orbitals) {
         const rMax = AtomManager.SAMPLING_EXTENT * orbital.n * orbital.n;
-        configs.push({
-          n: orbital.n,
-          l: orbital.l,
-          m: orbital.m,
-          position: atom.position,
-          rMax,
-          maxPsi: estimateMaxPsi(orbital.n, orbital.l, orbital.m, rMax),
-        });
+        const maxPsi = estimateMaxPsi(orbital.n, orbital.l, orbital.m, rMax);
+
+        // Expand each orbital into per-electron entries.
+        // Hund's rule: first fill is the atom's preferred spin direction.
+        const primarySpin = atom.spinUp ? 0.5 : -0.5;
+        const secondarySpin = -primarySpin;
+
+        if (orbital.electrons >= 1) {
+          configs.push({
+            n: orbital.n, l: orbital.l, m: orbital.m,
+            position: atom.position, rMax, maxPsi,
+            spin: primarySpin,
+          });
+        }
+        if (orbital.electrons >= 2) {
+          configs.push({
+            n: orbital.n, l: orbital.l, m: orbital.m,
+            position: atom.position, rMax, maxPsi,
+            spin: secondarySpin,
+          });
+        }
       }
     }
     return configs;

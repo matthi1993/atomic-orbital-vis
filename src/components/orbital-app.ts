@@ -18,7 +18,7 @@ import { theme } from './styles/index.js';
 import './render-panel.js';
 import './atom-editor.js';
 import './atom-list.js';
-import type { AtomEditorChange, AtomPresetChange, AtomOrbitalSelect } from './atom-editor.js';
+import type { AtomEditorChange, AtomPresetChange, AtomOrbitalSelect, AtomSpinFlip } from './atom-editor.js';
 import type { AtomAddRequest, AtomDeleteRequest, AtomSelectRequest } from './atom-list.js';
 
 @customElement('orbital-app')
@@ -125,6 +125,7 @@ export class OrbitalApp extends LitElement {
           @atom-edit=${this.onAtomEdit}
           @atom-preset=${this.onAtomPreset}
           @atom-orbital-select=${this.onAtomOrbitalSelect}
+          @atom-spin-flip=${this.onAtomSpinFlip}
         ></atom-editor>
       </div>
       <render-panel
@@ -265,6 +266,12 @@ export class OrbitalApp extends LitElement {
 
   private onAtomOrbitalSelect = (e: CustomEvent<AtomOrbitalSelect>) => {
     this.atomService.selectOrbital(e.detail.atomId, e.detail.layer, e.detail.orbitalIndex);
+    this.particleService.regenerate(this.params);
+    this.atomVersion++;
+  };
+
+  private onAtomSpinFlip = (e: CustomEvent<AtomSpinFlip>) => {
+    this.atomService.flipSpin(e.detail.atomId);
     this.particleService.regenerate(this.params);
     this.atomVersion++;
   };

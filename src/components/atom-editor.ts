@@ -26,6 +26,10 @@ export interface AtomOrbitalSelect {
   orbitalIndex: number | null;  // null = all in layer
 }
 
+export interface AtomSpinFlip {
+  atomId: string;
+}
+
 /** Element preset: ground-state outermost orbital for the first 10 elements */
 export interface ElementPreset {
   symbol: string;
@@ -131,6 +135,45 @@ export class AtomEditor extends LitElement {
         margin-bottom: var(--sp-xs);
         text-align: left;
       }
+
+      .spin-row {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--sp-sm);
+        padding: var(--sp-xs) 0;
+      }
+
+      .spin-row .spin-label {
+        font-size: var(--fs-sm);
+        color: var(--c-text-muted);
+      }
+
+      .spin-row .spin-value {
+        font-weight: var(--fw-bold);
+        font-size: var(--fs-sm);
+      }
+
+      .spin-row .spin-up   { color: #6af; }
+      .spin-row .spin-down { color: #fa6; }
+
+      .flip-btn {
+        background: var(--c-bg-hover);
+        border: 1px solid var(--c-border);
+        border-radius: var(--radius-md);
+        color: var(--c-text);
+        padding: var(--sp-xs) var(--sp-sm);
+        cursor: pointer;
+        font-family: var(--font-family);
+        font-size: var(--fs-sm);
+        transition: background var(--transition-fast), border-color var(--transition-fast);
+      }
+
+      .flip-btn:hover {
+        background: rgba(100, 140, 255, 0.25);
+        border-color: var(--c-border-hover);
+      }
     `,
   ];
 
@@ -181,6 +224,17 @@ export class AtomEditor extends LitElement {
     this.dispatchEvent(
       new CustomEvent('atom-orbital-select', {
         detail: { atomId: this.atom.id, layer, orbitalIndex: index } satisfies AtomOrbitalSelect,
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  private emitSpinFlip() {
+    if (!this.atom) return;
+    this.dispatchEvent(
+      new CustomEvent('atom-spin-flip', {
+        detail: { atomId: this.atom.id } satisfies AtomSpinFlip,
         bubbles: true,
         composed: true,
       }),
@@ -262,6 +316,14 @@ export class AtomEditor extends LitElement {
                 </option>
               `)}
             </select>
+          </div>
+
+          <div class="spin-row">
+            <span class="spin-label">Electron spin</span>
+            <span class="spin-value ${atom.spinUp ? 'spin-up' : 'spin-down'}">
+              ${atom.spinUp ? '↑ up (+½)' : '↓ down (−½)'}
+            </span>
+            <button class="flip-btn" @click=${() => this.emitSpinFlip()}>Flip</button>
           </div>
 
           <div class="section-label">Nucleus</div>

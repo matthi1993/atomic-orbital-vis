@@ -87,6 +87,13 @@ export class AtomService {
     this.atomManager.markAllDirty();
   }
 
+  flipSpin(atomId: string): void {
+    const atom = this.atomManager.getAtom(atomId);
+    if (!atom) return;
+    atom.flipSpin();
+    this.atomManager.markAllDirty();
+  }
+
   handleDrag(evt: HandleDragEvent): void {
     const atom = this.atomManager.getAtom(evt.atomId);
     if (!atom) return;

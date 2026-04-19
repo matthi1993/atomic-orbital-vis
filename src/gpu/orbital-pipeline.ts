@@ -12,6 +12,7 @@ export interface AtomGPUConfig {
   position: [number, number, number];
   rMax: number;
   maxPsi: number;
+  spin: number; // +0.5 (up) or -0.5 (down)
 }
 
 export class OrbitalPipeline {
@@ -107,10 +108,20 @@ export class OrbitalPipeline {
     this.uniformData[2] = threshold;
     this.uniformData[3] = (performance.now() * 1000) % 16777216;
     this.uniformData[4] = atomCount;
-    // [5–7] pad
+    // Compute a conservative upper bound for the coherent ψ² sum
+    // per spin channel: (Σ √maxPsi_i)² bounds the max of |Σψ_i|²·r².
+    let sumAmplUp = 0;
+    let sumAmplDown = 0;
+    for (const a of atomConfigs) {
+      const ampl = Math.sqrt(a.maxPsi);
+      if (a.spin >= 0) sumAmplUp += ampl; else sumAmplDown += ampl;
+    }
+    this.uniformData[5] = Math.max(sumAmplUp * sumAmplUp, sumAmplDown * sumAmplDown, 1e-30);
+    // [6–7] pad
     this.device.queue.writeBuffer(this.uniformBuffer!, 0, this.uniformData);
 
-    // Write atom configs: [n, l, m, pos_x, pos_y, pos_z, r_max, pad] per atom
+    // Write atom configs: [n, l, m, pos_x, pos_y, pos_z, r_max, max_psi_signed] per atom
+    // Spin is encoded in the sign of max_psi: positive = spin-up, negative = spin-down.
     const atomData = new Float32Array(atomCount * 8);
     for (let i = 0; i < atomCount; i++) {
       const a = atomConfigs[i];
@@ -122,7 +133,7 @@ export class OrbitalPipeline {
       atomData[off + 4] = a.position[1];
       atomData[off + 5] = a.position[2];
       atomData[off + 6] = a.rMax;
-      atomData[off + 7] = a.maxPsi; // per-orbital max |ψ|²·r²
+      atomData[off + 7] = a.spin >= 0 ? a.maxPsi : -a.maxPsi;
     }
     this.device.queue.writeBuffer(this.atomBuffer!, 0, atomData);
 

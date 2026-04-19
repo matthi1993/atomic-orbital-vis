@@ -3,13 +3,14 @@ import type { GeneratedParticles } from '../types.js';
 
 const PARTICLE_STRIDE = 32; // pos(vec4) + color(vec4) = 8 floats × 4 bytes
 const UNIFORM_SIZE = 32;    // 8 floats × 4 bytes
-const ATOM_STRIDE = 40;     // 10 floats × 4 bytes per AtomConfig
+const ATOM_STRIDE = 64;     // 16 floats × 4 bytes per AtomConfig
 
 export interface AtomGPUConfig {
   n: number;
   l: number;
   m: number;
   position: [number, number, number];
+  rotation: [number, number, number]; // Euler angles in radians
   rMax: number;
   maxPsi: number;
   spin: number; // +0.5 (up) or -0.5 (down)
@@ -129,12 +130,11 @@ export class OrbitalPipeline {
     // [7] pad
     this.device.queue.writeBuffer(this.uniformBuffer!, 0, this.uniformData);
 
-    // Write atom configs: [n, l, m, pos_x, pos_y, pos_z, r_max, max_psi_signed] per atom
-    // Spin is encoded in the sign of max_psi: positive = spin-up, negative = spin-down.
-    const atomData = new Float32Array(atomCount * 10);
+    // Write atom configs: 16 floats per atom
+    const atomData = new Float32Array(atomCount * 16);
     for (let i = 0; i < atomCount; i++) {
       const a = atomConfigs[i];
-      const off = i * 10;
+      const off = i * 16;
       atomData[off + 0] = a.n;
       atomData[off + 1] = a.l;
       atomData[off + 2] = a.m;
@@ -145,6 +145,10 @@ export class OrbitalPipeline {
       atomData[off + 7] = a.spin >= 0 ? a.maxPsi : -a.maxPsi;
       atomData[off + 8] = a.groupId;
       atomData[off + 9] = a.electrons;
+      atomData[off + 10] = a.rotation[0];
+      atomData[off + 11] = a.rotation[1];
+      atomData[off + 12] = a.rotation[2];
+      // [13..15] padding
     }
     this.device.queue.writeBuffer(this.atomBuffer!, 0, atomData);
 

@@ -31,6 +31,9 @@ export class PointCloud {
   private lastFixedScreenSize = false;
   private lastCameraPosition = new THREE.Vector3();
 
+  /* ─── Drag transform state ──────────────────────── */
+  private dragOriginalPositions: Float32Array | null = null;
+
   constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
     this.scene = scene;
     this.camera = camera;
@@ -207,6 +210,49 @@ export class PointCloud {
     if (this._fixedScreenSize === value) return;
     this._fixedScreenSize = value;
     this.matrixDirty = true;
+  }
+
+  /* ─── Drag transform helpers ─────────────────────── */
+
+  /** Save current positions before a drag begins. */
+  saveDragStart(): void {
+    if (this.storedPositions) {
+      this.dragOriginalPositions = new Float32Array(this.storedPositions);
+    }
+  }
+
+  /** Apply a translation offset to the mesh during drag. */
+  setDragTranslation(dx: number, dy: number, dz: number): void {
+    if (!this.mesh) return;
+    this.mesh.position.set(dx, dy, dz);
+  }
+
+  /** Apply a rotation delta to stored positions during drag. */
+  setDragRotation(qx: number, qy: number, qz: number, qw: number, pivot: [number, number, number]): void {
+    if (!this.dragOriginalPositions || !this.storedPositions) return;
+    const orig = this.dragOriginalPositions;
+    const out = this.storedPositions;
+    const px = pivot[0], py = pivot[1], pz = pivot[2];
+    for (let i = 0; i < this.count; i++) {
+      const vx = orig[i * 3] - px;
+      const vy = orig[i * 3 + 1] - py;
+      const vz = orig[i * 3 + 2] - pz;
+      // Apply quaternion rotation: v' = q * v * q⁻¹
+      const ix = qw * vx + qy * vz - qz * vy;
+      const iy = qw * vy + qz * vx - qx * vz;
+      const iz = qw * vz + qx * vy - qy * vx;
+      const iw = -qx * vx - qy * vy - qz * vz;
+      out[i * 3]     = ix * qw + iw * -qx + iy * -qz - iz * -qy + px;
+      out[i * 3 + 1] = iy * qw + iw * -qy + iz * -qx - ix * -qz + py;
+      out[i * 3 + 2] = iz * qw + iw * -qz + ix * -qy - iy * -qx + pz;
+    }
+    this.matrixDirty = true;
+  }
+
+  /** Reset drag visual state. */
+  clearDragTransform(): void {
+    if (this.mesh) this.mesh.position.set(0, 0, 0);
+    this.dragOriginalPositions = null;
   }
 
   dispose(): void {

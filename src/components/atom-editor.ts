@@ -11,7 +11,7 @@ import './periodic-table-modal.js';
 
 export interface AtomEditorChange {
   atomId: string;
-  key: 'protons' | 'electrons' | 'posX' | 'posY' | 'posZ';
+  key: 'protons' | 'electrons' | 'posX' | 'posY' | 'posZ' | 'rotX' | 'rotY' | 'rotZ';
   value: number;
 }
 
@@ -358,6 +358,26 @@ export class AtomEditor extends LitElement {
           <input type="number" min="-50" max="50" step="0.5"
             .value=${String(atom.position[2])}
             @change=${(e: Event) => this.onNumber('posZ', e)} />
+          <span></span>
+
+          <div class="section-label">Rotation (°)</div>
+
+          <label>X</label>
+          <input type="number" min="0" max="360" step="5"
+            .value=${String(atom.rotation[0])}
+            @change=${(e: Event) => this.onNumber('rotX', e)} />
+          <span></span>
+
+          <label>Y</label>
+          <input type="number" min="0" max="360" step="5"
+            .value=${String(atom.rotation[1])}
+            @change=${(e: Event) => this.onNumber('rotY', e)} />
+          <span></span>
+
+          <label>Z</label>
+          <input type="number" min="0" max="360" step="5"
+            .value=${String(atom.rotation[2])}
+            @change=${(e: Event) => this.onNumber('rotZ', e)} />
           <span></span>
         </div>
       </collapsible-panel>

@@ -9,6 +9,7 @@ import { PointCloud } from '../renderer/point-cloud.js';
 import { Nucleus } from '../renderer/nucleus.js';
 import { AxesPlots } from '../renderer/axes-plots.js';
 import { AxisHandles } from '../renderer/axis-handles.js';
+import { RotationHandles } from '../renderer/rotation-handles.js';
 import { SelectionService } from '../services/selection-service.js';
 import { AtomService } from '../services/atom-service.js';
 import { ParticleService } from '../services/particle-service.js';
@@ -21,6 +22,38 @@ import './atom-list.js';
 import type { AtomEditorChange, AtomPresetChange, AtomOrbitalSelect, AtomSpinFlip } from './atom-editor.js';
 import type { AtomAddRequest, AtomDeleteRequest, AtomSelectRequest } from './atom-list.js';
 
+/** Compute the delta quaternion (current · start⁻¹) from two Euler rotations (radians).
+ *  Convention matches the GPU shader: Rz·Ry·Rx  →  Q = Qz·Qy·Qx.
+ */
+function eulerDelta(
+  sx: number, sy: number, sz: number,
+  cx: number, cy: number, cz: number,
+): [number, number, number, number] {
+  // Euler → quaternion (Q = Qz·Qy·Qx, extrinsic XYZ)
+  const toQ = (x: number, y: number, z: number): [number, number, number, number] => {
+    const s1 = Math.sin(x / 2), c1 = Math.cos(x / 2);
+    const s2 = Math.sin(y / 2), c2 = Math.cos(y / 2);
+    const s3 = Math.sin(z / 2), c3 = Math.cos(z / 2);
+    return [
+      c3 * c2 * s1 - s3 * s2 * c1,
+      c3 * s2 * c1 + s3 * c2 * s1,
+      s3 * c2 * c1 - c3 * s2 * s1,
+      c3 * c2 * c1 + s3 * s2 * s1,
+    ];
+  };
+  const sq = toQ(sx, sy, sz);
+  const cq = toQ(cx, cy, cz);
+  // invert start quaternion (conjugate for unit quaternions)
+  const invX = -sq[0], invY = -sq[1], invZ = -sq[2], invW = sq[3];
+  // delta = current * start⁻¹
+  return [
+    cq[3] * invX + cq[0] * invW + cq[1] * invZ - cq[2] * invY,
+    cq[3] * invY - cq[0] * invZ + cq[1] * invW + cq[2] * invX,
+    cq[3] * invZ + cq[0] * invY - cq[1] * invX + cq[2] * invW,
+    cq[3] * invW - cq[0] * invX - cq[1] * invY - cq[2] * invZ,
+  ];
+}
+
 @customElement('orbital-app')
 export class OrbitalApp extends LitElement {
   @state() private params: OrbitalParams = { ...DEFAULT_PARAMS };
@@ -30,11 +63,16 @@ export class OrbitalApp extends LitElement {
 
   private atomManager = new AtomManager();
   private sceneManager!: SceneManager;
+  private pointCloud!: PointCloud;
   private selectionService!: SelectionService;
   private atomService!: AtomService;
   private particleService!: ParticleService;
   private renderLoopService!: RenderLoopService;
   private interactionService!: InteractionService;
+
+  /* Drag-start tracking for real-time point-cloud transform */
+  private _translationDragStart: [number, number, number] | null = null;
+  private _rotationDragStart: [number, number, number] | null = null;
 
   static styles = [
     ...theme,
@@ -211,19 +249,23 @@ export class OrbitalApp extends LitElement {
 
     const pipeline = new OrbitalPipeline(this.sceneManager.device);
     const pointCloud = new PointCloud(this.sceneManager.scene, this.sceneManager.camera);
+    this.pointCloud = pointCloud;
     const nucleus = new Nucleus(this.sceneManager.scene);
     const axesPlots = new AxesPlots(this.sceneManager.scene);
     const axisHandles = new AxisHandles(this.sceneManager.scene);
+    const rotationHandles = new RotationHandles(this.sceneManager.scene);
 
     // Wire up domain services
-    this.selectionService = new SelectionService(this.atomManager, nucleus, axisHandles, this.sceneManager);
-    this.atomService = new AtomService(this.atomManager, nucleus, axisHandles, this.sceneManager, this.selectionService);
+    this.selectionService = new SelectionService(this.atomManager, nucleus, axisHandles, rotationHandles, this.sceneManager);
+    this.atomService = new AtomService(this.atomManager, nucleus, axisHandles, rotationHandles, this.sceneManager, this.selectionService);
     this.particleService = new ParticleService(this.atomManager, pipeline, pointCloud, axesPlots, this.sceneManager);
-    this.renderLoopService = new RenderLoopService(pointCloud, nucleus, axisHandles, axesPlots, this.sceneManager);
-    this.interactionService = new InteractionService(this.sceneManager, nucleus, axisHandles);
+    this.renderLoopService = new RenderLoopService(pointCloud, nucleus, axisHandles, rotationHandles, axesPlots, this.sceneManager);
+    this.interactionService = new InteractionService(this.sceneManager, nucleus, axisHandles, rotationHandles);
 
     axisHandles.onDrag = this.onHandleDrag;
     axisHandles.onDragEnd = this.onHandleDragEnd;
+    rotationHandles.onDrag = this.onRotationDrag;
+    rotationHandles.onDragEnd = this.onRotationDragEnd;
 
     // Create initial hydrogen atom at the origin
     this.atomService.addAtom();
@@ -273,8 +315,14 @@ export class OrbitalApp extends LitElement {
   };
 
   private onPointerDown = (e: PointerEvent) => {
+    // Provide current rotation for rotation handle drag start
+    if (this.selectedAtomId) {
+      const atom = this.atomManager.getAtom(this.selectedAtomId);
+      if (atom) this.interactionService.currentRotation = [...atom.rotation];
+    }
+
     const result = this.interactionService.handlePointerDown(e);
-    if (result.type === 'handle') return;
+    if (result.type === 'handle' || result.type === 'rotation-handle') return;
 
     if (result.type === 'nucleus') {
       this.selectionService.select(result.atomId);
@@ -340,12 +388,70 @@ export class OrbitalApp extends LitElement {
   };
 
   private onHandleDrag = (evt: import('../renderer/axis-handles.js').HandleDragEvent) => {
+    // Capture pre-drag position on first event
+    if (!this._translationDragStart) {
+      const atom = this.atomManager.getAtom(evt.atomId);
+      if (atom) {
+        this._translationDragStart = [...atom.position] as [number, number, number];
+        this.pointCloud.saveDragStart();
+      }
+    }
     this.atomService.handleDrag(evt);
+    // Apply visual offset to point cloud
+    if (this._translationDragStart) {
+      const atom = this.atomManager.getAtom(evt.atomId);
+      if (atom) {
+        this.pointCloud.setDragTranslation(
+          atom.position[0] - this._translationDragStart[0],
+          atom.position[1] - this._translationDragStart[1],
+          atom.position[2] - this._translationDragStart[2],
+        );
+      }
+    }
     this.atomVersion++;
   };
 
   private onHandleDragEnd = () => {
+    this.pointCloud.clearDragTransform();
+    this._translationDragStart = null;
     this.atomService.handleDragEnd();
+    this.particleService.regenerate(this.params);
+  };
+
+  private onRotationDrag = (evt: import('../renderer/rotation-handles.js').RotationDragEvent) => {
+    // Capture pre-drag rotation on first event
+    if (!this._rotationDragStart) {
+      const atom = this.atomManager.getAtom(evt.atomId);
+      if (atom) {
+        this._rotationDragStart = [...atom.rotation] as [number, number, number];
+        this.pointCloud.saveDragStart();
+      }
+    }
+    this.atomService.handleRotationDrag(evt);
+    // Apply visual rotation to point cloud around atom pivot
+    if (this._rotationDragStart) {
+      const atom = this.atomManager.getAtom(evt.atomId);
+      if (atom) {
+        const toRad = Math.PI / 180;
+        const dq = eulerDelta(
+          this._rotationDragStart[0] * toRad,
+          this._rotationDragStart[1] * toRad,
+          this._rotationDragStart[2] * toRad,
+          atom.rotation[0] * toRad,
+          atom.rotation[1] * toRad,
+          atom.rotation[2] * toRad,
+        );
+        this.pointCloud.setDragRotation(dq[0], dq[1], dq[2], dq[3], atom.position);
+        this.sceneManager.markDirty();
+      }
+    }
+    this.atomVersion++;
+  };
+
+  private onRotationDragEnd = () => {
+    this.pointCloud.clearDragTransform();
+    this._rotationDragStart = null;
+    this.atomService.handleRotationDragEnd();
     this.particleService.regenerate(this.params);
   };
 }

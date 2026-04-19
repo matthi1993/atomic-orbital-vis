@@ -92,9 +92,14 @@ export class AtomManager {
         // One entry per orbital; electron count carried as a weight.
         // Hund's rule: primary spin is the atom's preferred direction.
         const spin = atom.spinUp ? 0.5 : -0.5;
+        const rotRad: [number, number, number] = [
+          atom.rotation[0] * Math.PI / 180,
+          atom.rotation[1] * Math.PI / 180,
+          atom.rotation[2] * Math.PI / 180,
+        ];
         configs.push({
           n: orbital.n, l: orbital.l, m: orbital.m,
-          position: atom.position, rMax, maxPsi,
+          position: atom.position, rotation: rotRad, rMax, maxPsi,
           spin, groupId, electrons: orbital.electrons,
         });
       }

@@ -2,9 +2,11 @@ import type { AtomManager } from '../physics/atom-manager.js';
 import type { Atom } from '../physics/atom.js';
 import type { Nucleus } from '../renderer/nucleus.js';
 import type { AxisHandles } from '../renderer/axis-handles.js';
+import type { RotationHandles } from '../renderer/rotation-handles.js';
 import type { SceneManager } from '../renderer/scene-manager.js';
 import type { SelectionService } from './selection-service.js';
 import type { HandleDragEvent } from '../renderer/axis-handles.js';
+import type { RotationDragEvent } from '../renderer/rotation-handles.js';
 
 /**
  * Handles atom lifecycle (add / remove), property editing,
@@ -16,6 +18,7 @@ export class AtomService {
     private atomManager: AtomManager,
     private nucleus: Nucleus,
     private axisHandles: AxisHandles,
+    private rotationHandles: RotationHandles,
     private sceneManager: SceneManager,
     private selectionService: SelectionService,
   ) {}
@@ -62,6 +65,16 @@ export class AtomService {
         atom.setPosition(pos);
         this.nucleus.updatePosition(atomId, pos);
         this.axisHandles.updatePosition(pos);
+        this.rotationHandles.updatePosition(pos);
+        break;
+      }
+      case 'rotX':
+      case 'rotY':
+      case 'rotZ': {
+        const rot = [...atom.rotation] as [number, number, number];
+        const idx = key === 'rotX' ? 0 : key === 'rotY' ? 1 : 2;
+        rot[idx] = value;
+        atom.setRotation(rot);
         break;
       }
     }
@@ -105,10 +118,22 @@ export class AtomService {
     atom.setPosition(snapped);
     this.nucleus.updatePosition(evt.atomId, snapped);
     this.axisHandles.updatePosition(snapped);
+    this.rotationHandles.updatePosition(snapped);
     this.sceneManager.markDirty();
   }
 
   handleDragEnd(): void {
+    this.atomManager.markAllDirty();
+  }
+
+  handleRotationDrag(evt: RotationDragEvent): void {
+    const atom = this.atomManager.getAtom(evt.atomId);
+    if (!atom) return;
+    atom.setRotation(evt.rotation);
+    this.sceneManager.markDirty();
+  }
+
+  handleRotationDragEnd(): void {
     this.atomManager.markAllDirty();
   }
 }

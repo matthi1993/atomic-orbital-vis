@@ -4,9 +4,9 @@ type Axis = 'x' | 'y' | 'z';
 
 const AXIS_COLORS: Record<Axis, number> = { x: 0xff4444, y: 0x44ff44, z: 0x4488ff };
 const HANDLE_LENGTH = 3.0;
-const CONE_RADIUS = 0.2;
+const CONE_RADIUS = 0.15;
 const CONE_HEIGHT = 0.7;
-const SHAFT_RADIUS = 0.04;
+const SHAFT_RADIUS = 0.025;
 
 export interface HandleDragEvent {
   atomId: string;
@@ -203,8 +203,8 @@ export class AxisHandles {
 
     for (const axis of axes) {
       const color = AXIS_COLORS[axis];
-      const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, depthTest: false });
-      const hoverMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthTest: false });
+      const material = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7, depthTest: false });
+      const hoverMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthTest: false });
 
       const shaftMesh = new THREE.Mesh(shaftGeo, material);
       shaftMesh.renderOrder = 999;

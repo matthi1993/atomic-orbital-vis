@@ -40,9 +40,15 @@ export const orbitalShaderCode = /* wgsl */`
     pos_y: f32,
     pos_z: f32,
     r_max: f32,
-    max_psi_signed: f32,   // |max_psi|; sign encodes spin (+up, −down)
+    max_psi_signed: f32,
     group_id: f32,
-    electrons: f32,         // 1 or 2 — density weight
+    electrons: f32,
+    rot_x: f32,
+    rot_y: f32,
+    rot_z: f32,
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
   };
 
   struct Particle {
@@ -56,6 +62,18 @@ export const orbitalShaderCode = /* wgsl */`
 
   const PI: f32 = 3.14159265359;
   const SQRT2: f32 = 1.41421356237;
+
+  /* Build a rotation matrix from Euler angles (Rz·Ry·Rx extrinsic XYZ order). */
+  fn rot_matrix(rx: f32, ry: f32, rz: f32) -> mat3x3<f32> {
+    let cx = cos(rx); let sx = sin(rx);
+    let cy = cos(ry); let sy = sin(ry);
+    let cz = cos(rz); let sz = sin(rz);
+    return mat3x3<f32>(
+      vec3<f32>(cy * cz,                  cy * sz,                  -sy),
+      vec3<f32>(sx * sy * cz - cx * sz,   sx * sy * sz + cx * cz,   sx * cy),
+      vec3<f32>(cx * sy * cz + sx * sz,   cx * sy * sz - sx * cz,   cx * cy),
+    );
+  }
 
   fn pcg_hash(input: u32) -> u32 {
     var state = input * 747796405u + 2891336453u;
@@ -174,11 +192,14 @@ export const orbitalShaderCode = /* wgsl */`
       let cosTheta = 2.0 * rand(&seed) - 1.0;
       let phi = rand(&seed) * 2.0 * PI;
 
-      // Convert to world-space Cartesian
+      // Convert to world-space Cartesian (apply rotation then translate)
       let sinTheta = sqrt(max(1.0 - cosTheta * cosTheta, 0.0));
-      let wx = orbital.pos_x + s * r * sinTheta * cos(phi);
-      let wy = orbital.pos_y + s * r * sinTheta * sin(phi);
-      let wz = orbital.pos_z + s * r * cosTheta;
+      let local = vec3<f32>(r * sinTheta * cos(phi), r * sinTheta * sin(phi), r * cosTheta);
+      let R = rot_matrix(orbital.rot_x, orbital.rot_y, orbital.rot_z);
+      let rotated = R * local;
+      let wx = orbital.pos_x + s * rotated.x;
+      let wy = orbital.pos_y + s * rotated.y;
+      let wz = orbital.pos_z + s * rotated.z;
 
       // ── 2. Coherent ψ for the sampled group only ──
       //    Same (n,l,m) on different atoms → coherent (molecular bonding)
@@ -193,10 +214,13 @@ export const orbitalShaderCode = /* wgsl */`
 
         let aj_spin_sign = sign(aj.max_psi_signed);
 
-        // World → local displacement (undo orbital scale)
-        let dx = (wx - aj.pos_x) / s;
-        let dy = (wy - aj.pos_y) / s;
-        let dz = (wz - aj.pos_z) / s;
+        // World → local displacement (undo rotation + scale)
+        let dw = vec3<f32>((wx - aj.pos_x) / s, (wy - aj.pos_y) / s, (wz - aj.pos_z) / s);
+        let Rj = rot_matrix(aj.rot_x, aj.rot_y, aj.rot_z);
+        let dl = transpose(Rj) * dw; // inverse rotation = transpose
+        let dx = dl.x;
+        let dy = dl.y;
+        let dz = dl.z;
         let local_r = sqrt(dx * dx + dy * dy + dz * dz);
 
         // Skip if outside this orbital's radial extent

@@ -1,6 +1,7 @@
 import type { PointCloud } from '../renderer/point-cloud.js';
 import type { Nucleus } from '../renderer/nucleus.js';
 import type { AxisHandles } from '../renderer/axis-handles.js';
+import type { RotationHandles } from '../renderer/rotation-handles.js';
 import type { AxesPlots } from '../renderer/axes-plots.js';
 import type { SceneManager } from '../renderer/scene-manager.js';
 import type { OrbitalParams } from '../types.js';
@@ -19,6 +20,7 @@ export class RenderLoopService {
     private pointCloud: PointCloud,
     private nucleus: Nucleus,
     private axisHandles: AxisHandles,
+    private rotationHandles: RotationHandles,
     private axesPlots: AxesPlots,
     private sceneManager: SceneManager,
   ) {}
@@ -60,6 +62,7 @@ export class RenderLoopService {
     this.pointCloud.updateIfNeeded();
     this.nucleus.update(this.elapsedTime);
     this.axisHandles.updateScale(this.sceneManager.camera);
+    this.rotationHandles.updateScale(this.sceneManager.camera);
     this.axesPlots.updateScale(this.sceneManager.camera);
     this.sceneManager.render();
   };

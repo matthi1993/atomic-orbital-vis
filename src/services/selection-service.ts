@@ -1,11 +1,12 @@
 import type { AtomManager } from '../physics/atom-manager.js';
 import type { Nucleus } from '../renderer/nucleus.js';
 import type { AxisHandles } from '../renderer/axis-handles.js';
+import type { RotationHandles } from '../renderer/rotation-handles.js';
 import type { SceneManager } from '../renderer/scene-manager.js';
 
 /**
  * Coordinates atom selection state across the data layer (AtomManager)
- * and visual representations (Nucleus highlight, AxisHandles attachment).
+ * and visual representations (Nucleus highlight, AxisHandles/RotationHandles attachment).
  */
 export class SelectionService {
   private _selectedAtomId: string | null = null;
@@ -14,6 +15,7 @@ export class SelectionService {
     private atomManager: AtomManager,
     private nucleus: Nucleus,
     private axisHandles: AxisHandles,
+    private rotationHandles: RotationHandles,
     private sceneManager: SceneManager,
   ) {}
 
@@ -27,6 +29,7 @@ export class SelectionService {
     this.nucleus.selectedId = atomId;
     const atom = this.atomManager.getAtom(atomId);
     this.axisHandles.attach(atomId, atom?.position ?? null);
+    this.rotationHandles.attach(atomId, atom?.position ?? null);
     this.sceneManager.markDirty();
   }
 
@@ -34,6 +37,7 @@ export class SelectionService {
     this._selectedAtomId = null;
     this.nucleus.selectedId = null;
     this.axisHandles.attach(null, null);
+    this.rotationHandles.attach(null, null);
     this.sceneManager.markDirty();
   }
 

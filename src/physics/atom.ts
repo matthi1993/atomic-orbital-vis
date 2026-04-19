@@ -21,6 +21,7 @@ export class Atom {
   private _l: number;
   private _m: number;
   private _position: [number, number, number];
+  private _rotation: [number, number, number]; // Euler angles in degrees (X, Y, Z)
   private _protons: number;
   private _electrons: number;
   private _dirty = true;
@@ -35,6 +36,7 @@ export class Atom {
     this._l = l;
     this._m = m;
     this._position = position;
+    this._rotation = [0, 0, 0];
     this._protons = 1;
     this._electrons = 1;
     this._spinUp = Math.random() < 0.5;
@@ -44,6 +46,7 @@ export class Atom {
   get l(): number { return this._l; }
   get m(): number { return this._m; }
   get position(): [number, number, number] { return this._position; }
+  get rotation(): [number, number, number] { return this._rotation; }
   get protons(): number { return this._protons; }
   get electrons(): number { return this._electrons; }
   get dirty(): boolean { return this._dirty; }
@@ -103,6 +106,12 @@ export class Atom {
   setPosition(pos: [number, number, number]): void {
     if (this._position[0] === pos[0] && this._position[1] === pos[1] && this._position[2] === pos[2]) return;
     this._position = pos;
+    this._dirty = true;
+  }
+
+  setRotation(rot: [number, number, number]): void {
+    if (this._rotation[0] === rot[0] && this._rotation[1] === rot[1] && this._rotation[2] === rot[2]) return;
+    this._rotation = rot;
     this._dirty = true;
   }
 

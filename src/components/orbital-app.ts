@@ -11,7 +11,9 @@ import { AxesPlots } from '../renderer/axes-plots.js';
 import { theme } from './styles/index.js';
 import './render-panel.js';
 import './atom-editor.js';
+import './atom-list.js';
 import type { AtomEditorChange, AtomPresetChange, AtomOrbitalSelect } from './atom-editor.js';
+import type { AtomAddRequest, AtomDeleteRequest, AtomSelectRequest } from './atom-list.js';
 
 @customElement('orbital-app')
 export class OrbitalApp extends LitElement {
@@ -73,6 +75,23 @@ export class OrbitalApp extends LitElement {
         color: var(--c-text-dim);
         margin-top: var(--sp-sm);
       }
+
+      .left-column {
+        position: absolute;
+        top: var(--sp-lg);
+        left: var(--sp-lg);
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        gap: var(--sp-md);
+        max-height: calc(100vh - 2 * var(--sp-lg));
+        overflow-y: auto;
+      }
+
+      .left-column atom-list,
+      .left-column atom-editor {
+        position: static;
+      }
     `,
   ];
 
@@ -88,19 +107,29 @@ export class OrbitalApp extends LitElement {
 
     return html`
       <div class="canvas-container"></div>
-      <atom-editor
-        .atom=${this.selectedAtomId ? this.atomManager.getAtom(this.selectedAtomId) ?? null : null}
-        .version=${this.atomVersion}
-        @atom-edit=${this.onAtomEdit}
-        @atom-preset=${this.onAtomPreset}
-        @atom-orbital-select=${this.onAtomOrbitalSelect}
-      ></atom-editor>
+      <div class="left-column">
+        <atom-list
+          .atoms=${this.atomManager.all}
+          .selectedAtomId=${this.selectedAtomId}
+          .version=${this.atomVersion}
+          @atom-select=${this.onAtomSelect}
+          @atom-add=${this.onAtomAdd}
+          @atom-delete=${this.onAtomDelete}
+        ></atom-list>
+        <atom-editor
+          .atom=${this.selectedAtomId ? this.atomManager.getAtom(this.selectedAtomId) ?? null : null}
+          .version=${this.atomVersion}
+          @atom-edit=${this.onAtomEdit}
+          @atom-preset=${this.onAtomPreset}
+          @atom-orbital-select=${this.onAtomOrbitalSelect}
+        ></atom-editor>
+      </div>
       <render-panel
         .params=${this.params}
         @param-change=${this.onParamChange}
         @camera-view=${this.onCameraView}
       ></render-panel>
-      <div class="info">Drag to rotate · Scroll to zoom · Click nucleus to edit · WebGPU Compute Shader</div>
+      <div class="info">Drag to rotate · Scroll to zoom · Click nucleus to select · WebGPU Compute Shader</div>
     `;
   }
 
@@ -176,7 +205,49 @@ export class OrbitalApp extends LitElement {
       this.atomManager.selectAtom(hitId);
       this.nucleus.selectedId = hitId;
       this.sceneManager.markDirty();
+      this.atomVersion++;
     }
+  };
+
+  private onAtomSelect = (e: CustomEvent<AtomSelectRequest>) => {
+    const { atomId } = e.detail;
+    this.selectedAtomId = atomId;
+    this.atomManager.selectAtom(atomId);
+    this.nucleus.selectedId = atomId;
+    this.sceneManager.markDirty();
+    this.atomVersion++;
+  };
+
+  private onAtomAdd = (e: CustomEvent<AtomAddRequest>) => {
+    const { position } = e.detail;
+    const atom = this.atomManager.addAtom(1, 0, 0, position);
+    atom.setProtons(1);
+    atom.setElectrons(1);
+    this.nucleus.addNucleus(atom.id, atom.position);
+    this.selectedAtomId = atom.id;
+    this.atomManager.selectAtom(atom.id);
+    this.nucleus.selectedId = atom.id;
+    this.atomManager.markAllDirty();
+    this.regenerate();
+    this.atomVersion++;
+  };
+
+  private onAtomDelete = (e: CustomEvent<AtomDeleteRequest>) => {
+    const { atomId } = e.detail;
+    this.nucleus.removeNucleus(atomId);
+    this.atomManager.removeAtom(atomId);
+    // Select another atom if the deleted one was selected
+    if (this.selectedAtomId === atomId) {
+      const remaining = this.atomManager.all;
+      this.selectedAtomId = remaining.length > 0 ? remaining[0].id : null;
+      if (this.selectedAtomId) {
+        this.atomManager.selectAtom(this.selectedAtomId);
+        this.nucleus.selectedId = this.selectedAtomId;
+      }
+    }
+    this.atomManager.markAllDirty();
+    this.regenerate();
+    this.atomVersion++;
   };
 
   private onAtomEdit = (e: CustomEvent<AtomEditorChange>) => {

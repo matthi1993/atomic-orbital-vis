@@ -110,25 +110,22 @@ export class OrbitalPipeline {
     this.uniformData[2] = threshold;
     this.uniformData[3] = (performance.now() * 1000) % 16777216;
     this.uniformData[4] = atomCount;
-    // Per-group upper bound: within each (n,l,m) group, compute
-    // (Σ √maxPsi)² per spin channel; sum across groups for the
-    // incoherent total normalization.
-    // Per-group upper bound: within each (n,l,m) group, compute
-    // (Σ √(electrons·maxPsi))²; sum across groups for incoherent total.
+
+    // Per-group normalization for rejection sampling.
+    // The shader samples ONE group per particle, so we normalize by the
+    // maximum per-group density (not the sum across groups).
     const groupAmpl = new Map<number, number>();
     for (const a of atomConfigs) {
       const ampl = Math.sqrt(a.electrons * a.maxPsi);
       const g = a.groupId;
       groupAmpl.set(g, (groupAmpl.get(g) ?? 0) + ampl);
     }
-    let totalMaxPsi = 0;
-    const allGroups = new Set(groupAmpl.keys());
-    for (const g of allGroups) {
-      const amp = groupAmpl.get(g) ?? 0;
-      totalMaxPsi += amp * amp;
+    let maxGroupPsi = 0;
+    for (const amp of groupAmpl.values()) {
+      maxGroupPsi = Math.max(maxGroupPsi, amp * amp);
     }
-    this.uniformData[5] = Math.max(totalMaxPsi, 1e-30);
-    this.uniformData[6] = allGroups.size; // num_groups
+    this.uniformData[5] = Math.max(maxGroupPsi, 1e-30);
+    this.uniformData[6] = groupAmpl.size; // num_groups (informational)
     // [7] pad
     this.device.queue.writeBuffer(this.uniformBuffer!, 0, this.uniformData);
 

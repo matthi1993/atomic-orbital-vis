@@ -1,15 +1,18 @@
 /**
  * Molecular orbital compute shader with spin-dependent interference.
  *
- * Physics model (two-level summation):
+ * Physics model (per-group sampling with coherent molecular bonding):
  *   Orbitals are grouped by quantum numbers (n, l, m).
- *   Within each group g:  ψ_g(r) = Σ sign_i · ψ_i(r − R_i)   [coherent]
- *   Across groups:         ρ(r) = Σ_g |ψ_g|²                   [incoherent]
+ *   Each particle samples ONE group at random, then evaluates the
+ *   coherent wavefunction within that group:
+ *     ψ_g(r) = Σ sign_i · ψ_i(r − R_i)
  *
- * Coherent summation within a group captures molecular bonding between
- * the same orbital type on different atoms (e.g. H₂ 1s + 1s).
- * Incoherent summation across groups is correct because orbitals with
- * different quantum numbers are orthogonal (e.g. 1s and 2p).
+ *   This preserves the angular shape of each orbital type when viewing
+ *   multiple orbitals simultaneously (e.g. all three 2p orbitals show
+ *   three separate dumbbell lobes rather than collapsing to a sphere).
+ *
+ *   Coherent summation within a group captures molecular bonding between
+ *   the same orbital type on different atoms (e.g. H₂ 1s + 1s).
  *
  * The sign within each group is determined relative to the group's first
  * entry (the reference):
@@ -154,9 +157,7 @@ export const orbitalShaderCode = /* wgsl */`
     let num_atoms = i32(uniforms.num_atoms);
     let threshold = uniforms.threshold;
     let s = uniforms.scale;
-    let max_coherent = uniforms.max_coherent_psi;
-
-    let num_groups_i = min(i32(uniforms.num_groups), 32);
+    let max_group_rho = uniforms.max_coherent_psi;
 
     var seed = pcg_hash(i * 1099087573u + u32(uniforms.seed));
 
@@ -167,6 +168,7 @@ export const orbitalShaderCode = /* wgsl */`
       // ── 1. Importance-sample: pick a random orbital as the centre ──
       let oidx = i32(floor(rand(&seed) * f32(num_atoms))) % num_atoms;
       let orbital = atoms[oidx];
+      let sample_gid = i32(orbital.group_id);
 
       let r = rand(&seed) * orbital.r_max;
       let cosTheta = 2.0 * rand(&seed) - 1.0;
@@ -178,21 +180,17 @@ export const orbitalShaderCode = /* wgsl */`
       let wy = orbital.pos_y + s * r * sinTheta * sin(phi);
       let wz = orbital.pos_z + s * r * cosTheta;
 
-      // ── 2. Per-group coherent ψ, then incoherent sum across groups ──
+      // ── 2. Coherent ψ for the sampled group only ──
       //    Same (n,l,m) on different atoms → coherent (molecular bonding)
-      //    Different (n,l,m) → incoherent (orthogonal orbitals)
-      var psi_group: array<f32, 32>;
-      var grp_ref_spin: array<f32, 32>;
-      var grp_max_electrons: array<f32, 32>;
-      for (var g: i32 = 0; g < 32; g++) {
-        psi_group[g] = 0.0;
-        grp_ref_spin[g] = 0.0;   // 0 = not yet assigned
-        grp_max_electrons[g] = 0.0;
-      }
+      //    Each particle belongs to one orbital group, preserving its shape
+      var psi_total: f32 = 0.0;
+      var ref_spin: f32 = 0.0;
+      var max_electrons: f32 = 0.0;
 
       for (var j: i32 = 0; j < num_atoms; j++) {
         let aj = atoms[j];
-        let gid = i32(aj.group_id);
+        if (i32(aj.group_id) != sample_gid) { continue; }
+
         let aj_spin_sign = sign(aj.max_psi_signed);
 
         // World → local displacement (undo orbital scale)
@@ -220,38 +218,24 @@ export const orbitalShaderCode = /* wgsl */`
         //   same spin as reference:   −1  (antibonding / Pauli antisymmetry)
         //   opposite spin:            +1  (bonding / singlet pairing)
         var phase: f32 = 1.0;
-        if (grp_ref_spin[gid] == 0.0) {
-          grp_ref_spin[gid] = aj_spin_sign;
-        } else if (aj_spin_sign * grp_ref_spin[gid] > 0.0) {
+        if (ref_spin == 0.0) {
+          ref_spin = aj_spin_sign;
+        } else if (aj_spin_sign * ref_spin > 0.0) {
           phase = -1.0;
         }
 
-        psi_group[gid] += phase * weight * psi_j;
-        grp_max_electrons[gid] = max(grp_max_electrons[gid], aj.electrons);
+        psi_total += phase * weight * psi_j;
+        max_electrons = max(max_electrons, aj.electrons);
       }
 
-      // Incoherent sum across groups: ρ = Σ_g |ψ_g|²
-      var rho: f32 = 0.0;
-      var dominant_psi: f32 = 0.0;
-      var dominant_gid: i32 = 0;
-      var max_psi2: f32 = 0.0;
-      for (var g: i32 = 0; g < num_groups_i; g++) {
-        let pg = psi_group[g];
-        let pg2 = pg * pg;
-        rho += pg2;
-        if (pg2 > max_psi2) {
-          max_psi2 = pg2;
-          dominant_psi = pg;
-          dominant_gid = g;
-        }
-      }
+      let rho = psi_total * psi_total;
 
       // Weight by r² of the importance-sampling orbital for volume element
       let rho_r2 = rho * r * r;
 
       var prob: f32 = 0.0;
-      if (max_coherent > 0.0) {
-        prob = rho_r2 / max_coherent;
+      if (max_group_rho > 0.0) {
+        prob = rho_r2 / max_group_rho;
       }
 
       prob = min(prob, 1.0);
@@ -260,16 +244,16 @@ export const orbitalShaderCode = /* wgsl */`
 
       pos = vec4<f32>(wx, wy, wz, 1.0);
 
-      // Colour by dominant group's ψ sign and fullness.
+      // Colour by ψ sign and fullness.
       // High probability → bright but desaturated (white-ish).
       // Low probability  → dark and more saturated (vivid).
       let t = pow(min(prob * 2.0, 1.0), 1.5);
       let sat = 1.0 - 0.3 * pow(t, 3.0);    // only the very peak desaturates slightly
       let brightness = 0.35 + 0.65 * t;      // high prob → bright, low prob → dark
-      let is_full = grp_max_electrons[dominant_gid] >= 2.0;
+      let is_full = max_electrons >= 2.0;
 
       var base: vec3<f32>;
-      if (dominant_psi >= 0.0) {
+      if (psi_total >= 0.0) {
         if (is_full) {
           base = vec3<f32>(0.0, 0.85, 1.0);   // cyan
         } else {

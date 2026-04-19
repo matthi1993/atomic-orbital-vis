@@ -21,7 +21,7 @@ export class SceneManager {
     this.perspCamera = new THREE.PerspectiveCamera(55, 1, 0.01, 1000);
     this.perspCamera.position.set(0, 15, 30);
 
-    this.orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 5000);
+    this.orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, -5000, 5000);
     this.orthoCamera.position.copy(this.perspCamera.position);
 
     container.appendChild(this.renderer.domElement);

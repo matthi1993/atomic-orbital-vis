@@ -254,32 +254,38 @@ export const orbitalShaderCode = /* wgsl */`
         prob = rho_r2 / max_coherent;
       }
 
+      prob = min(prob, 1.0);
       if (prob < threshold) { continue; }
       if (rand(&seed) > prob) { continue; }
 
       pos = vec4<f32>(wx, wy, wz, 1.0);
 
       // Colour by dominant group's ψ sign and fullness.
-      // Full orbitals (2e⁻): cyan / gold.  Half-filled (1e⁻): blue / orange.
+      // High probability → bright but desaturated (white-ish).
+      // Low probability  → dark and more saturated (vivid).
       let t = pow(min(prob * 2.0, 1.0), 1.5);
+      let sat = 1.0 - 0.3 * pow(t, 3.0);    // only the very peak desaturates slightly
+      let brightness = 0.35 + 0.65 * t;      // high prob → bright, low prob → dark
       let is_full = grp_max_electrons[dominant_gid] >= 2.0;
+
+      var base: vec3<f32>;
       if (dominant_psi >= 0.0) {
         if (is_full) {
-          // Full: vivid cyan
-          color = vec4<f32>(0.0 + 0.15 * t, 0.45 + 0.55 * t, 0.6 + 0.4 * t, t);
+          base = vec3<f32>(0.0, 0.85, 1.0);   // cyan
         } else {
-          // Half-filled: vivid blue
-          color = vec4<f32>(0.05 + 0.15 * t, 0.15 + 0.25 * t, 0.6 + 0.4 * t, t);
+          base = vec3<f32>(0.15, 0.35, 1.0);  // blue
         }
       } else {
         if (is_full) {
-          // Full: vivid gold
-          color = vec4<f32>(0.7 + 0.3 * t, 0.5 + 0.4 * t, 0.0 + 0.05 * t, t);
+          base = vec3<f32>(1.0, 0.8, 0.0);    // gold
         } else {
-          // Half-filled: vivid orange-red
-          color = vec4<f32>(0.7 + 0.3 * t, 0.12 + 0.18 * t, 0.02 + 0.08 * t, t);
+          base = vec3<f32>(1.0, 0.25, 0.05);  // orange-red
         }
       }
+
+      // Mix base toward white by (1-sat), then scale by brightness
+      let rgb = mix(vec3<f32>(1.0, 1.0, 1.0), base, sat) * brightness;
+      color = vec4<f32>(rgb, t);
       break;
     }
 

@@ -167,6 +167,16 @@ export class RenderPanel extends LitElement {
           <div class="toggle-row">
             <input
               type="checkbox"
+              id="fixedScreenSize"
+              .checked=${p.fixedScreenSize}
+              @change=${(e: Event) =>
+                this.emit('fixedScreenSize', (e.target as HTMLInputElement).checked)}
+            />
+            <label for="fixedScreenSize">Fixed Screen Size</label>
+          </div>
+          <div class="toggle-row">
+            <input
+              type="checkbox"
               id="opaqueMode"
               .checked=${p.opaqueMode}
               @change=${(e: Event) =>

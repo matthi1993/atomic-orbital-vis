@@ -13,6 +13,7 @@ export interface OrbitalParams {
   orthographic: boolean;
   showAxes: boolean;
   showElectrons: boolean;
+  fixedScreenSize: boolean;
   cutPlane: 'none' | 'x' | 'y' | 'z';
 }
 

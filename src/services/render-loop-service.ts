@@ -51,6 +51,7 @@ export class RenderLoopService {
     this.pointCloud.opaqueMode = p.opaqueMode;
     this.pointCloud.visible = p.showElectrons;
     this.pointCloud.cutPlane = p.cutPlane;
+    this.pointCloud.fixedScreenSize = p.fixedScreenSize;
     this.sceneManager.orthographic = p.orthographic;
     this.pointCloud.activeCamera = this.sceneManager.camera;
     this.sceneManager.autoRotateSpeed = p.rotSpeed;

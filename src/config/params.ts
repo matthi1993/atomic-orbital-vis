@@ -48,7 +48,7 @@ export const PARAM_DEFS: Partial<Record<keyof OrbitalParams, SliderDef>> = {
   pointSize: {
     label: 'Point Size',
     min: 1,
-    max: 60,
+    max: 30,
     step: 1,
     display: (v) => v.toFixed(1),
   },

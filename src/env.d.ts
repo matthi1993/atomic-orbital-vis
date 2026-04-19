@@ -10,8 +10,15 @@ declare module 'three' {
     clone(): Vector3;
     copy(v: Vector3): this;
     add(v: Vector3): this;
+    sub(v: Vector3): this;
+    cross(v: Vector3): this;
+    dot(v: Vector3): number;
     multiplyScalar(scalar: number): this;
+    subVectors(a: Vector3, b: Vector3): this;
+    crossVectors(a: Vector3, b: Vector3): this;
+    normalize(): this;
     length(): number;
+    lengthSq(): number;
     distanceTo(v: Vector3): number;
   }
 
@@ -52,7 +59,9 @@ declare module 'three' {
 
   export class Scene extends Object3D {}
 
-  export class Camera extends Object3D {}
+  export class Camera extends Object3D {
+    up: Vector3;
+  }
 
   export class PerspectiveCamera extends Camera {
     constructor(fov?: number, aspect?: number, near?: number, far?: number);
@@ -121,6 +130,11 @@ declare module 'three' {
     translate(x: number, y: number, z: number): this;
   }
 
+  export class ConeGeometry extends BufferGeometry {
+    constructor(radius?: number, height?: number, radialSegments?: number);
+    translate(x: number, y: number, z: number): this;
+  }
+
   export class MeshBasicMaterial extends Material {
     constructor(params?: {
       color?: number | string;
@@ -129,6 +143,7 @@ declare module 'three' {
       blending?: number;
       depthWrite?: boolean;
       depthTest?: boolean;
+      visible?: boolean;
     });
     color: Color;
     opacity: number;
@@ -140,6 +155,7 @@ declare module 'three' {
 
   export class Mesh extends Object3D {
     constructor(geometry?: BufferGeometry, material?: Material);
+    material: Material;
   }
 
   export class Line extends Object3D {
@@ -218,8 +234,21 @@ declare module 'three' {
     object: Object3D;
   }
 
+  export class Ray {
+    constructor(origin?: Vector3, direction?: Vector3);
+    intersectPlane(plane: Plane, target: Vector3): Vector3 | null;
+  }
+
+  export class Plane {
+    constructor(normal?: Vector3, constant?: number);
+    normal: Vector3;
+    constant: number;
+    setFromNormalAndCoplanarPoint(normal: Vector3, point: Vector3): this;
+  }
+
   export class Raycaster {
     constructor();
+    ray: Ray;
     setFromCamera(coords: Vector2, camera: Camera): void;
     intersectObjects(objects: Object3D[], recursive?: boolean): Intersection[];
   }

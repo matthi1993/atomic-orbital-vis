@@ -12,6 +12,12 @@ declare module 'three' {
     add(v: Vector3): this;
     multiplyScalar(scalar: number): this;
     length(): number;
+    distanceTo(v: Vector3): number;
+  }
+
+  export class Euler {
+    constructor(x?: number, y?: number, z?: number, order?: string);
+    x: number; y: number; z: number;
   }
 
   export class Color {
@@ -34,6 +40,7 @@ declare module 'three' {
     remove(...objects: Object3D[]): this;
     scale: Vector3;
     position: Vector3;
+    rotation: Euler;
     quaternion: Quaternion;
     visible: boolean;
     children: Object3D[];
@@ -107,6 +114,11 @@ declare module 'three' {
 
   export class SphereGeometry extends BufferGeometry {
     constructor(radius?: number, widthSegments?: number, heightSegments?: number);
+  }
+
+  export class CylinderGeometry extends BufferGeometry {
+    constructor(radiusTop?: number, radiusBottom?: number, height?: number, radialSegments?: number, heightSegments?: number);
+    translate(x: number, y: number, z: number): this;
   }
 
   export class MeshBasicMaterial extends Material {

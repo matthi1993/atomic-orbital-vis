@@ -58,6 +58,7 @@ export class RenderLoopService {
     this.pointCloud.updateIfNeeded();
     this.nucleus.update(this.elapsedTime);
     this.axisHandles.updateScale(this.sceneManager.camera);
+    this.axesPlots.updateScale(this.sceneManager.camera);
     this.sceneManager.render();
   };
 }

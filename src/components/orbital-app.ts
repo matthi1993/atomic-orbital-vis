@@ -411,11 +411,11 @@ export class OrbitalApp extends LitElement {
     this.atomVersion++;
   };
 
-  private onHandleDragEnd = () => {
-    this.pointCloud.clearDragTransform();
+  private onHandleDragEnd = async () => {
     this._translationDragStart = null;
     this.atomService.handleDragEnd();
-    this.particleService.regenerate(this.params);
+    await this.particleService.regenerate(this.params);
+    this.pointCloud.clearDragTransform();
   };
 
   private onRotationDrag = (evt: import('../renderer/rotation-handles.js').RotationDragEvent) => {
@@ -448,11 +448,11 @@ export class OrbitalApp extends LitElement {
     this.atomVersion++;
   };
 
-  private onRotationDragEnd = () => {
-    this.pointCloud.clearDragTransform();
+  private onRotationDragEnd = async () => {
     this._rotationDragStart = null;
     this.atomService.handleRotationDragEnd();
-    this.particleService.regenerate(this.params);
+    await this.particleService.regenerate(this.params);
+    this.pointCloud.clearDragTransform();
   };
 }
 

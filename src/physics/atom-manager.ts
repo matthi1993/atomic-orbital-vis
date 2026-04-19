@@ -65,20 +65,37 @@ export class AtomManager {
    * Build the atom config array expected by the GPU pipeline.
    * Expands each atom into its full electron configuration (all occupied orbitals).
    */
-  private buildAtomConfigs(scale: number): AtomGPUConfig[] {
+  /**
+   * Fixed sampling extent in Bohr radii — covers >99 % of |ψ|²·r².
+   * The visual size is handled by `uniforms.scale` in the GPU shader.
+   */
+  private static readonly SAMPLING_EXTENT = 4;
+
+  private buildAtomConfigs(): AtomGPUConfig[] {
     const configs: AtomGPUConfig[] = [];
+    const groupMap = new Map<string, number>();
+    let nextGroupId = 0;
+
     for (const atom of this.all) {
       const orbitals = atom.renderOrbitals;
       if (orbitals.length === 0) continue;
       for (const orbital of orbitals) {
-        const rMax = scale * orbital.n * orbital.n;
+        const rMax = AtomManager.SAMPLING_EXTENT * orbital.n * orbital.n;
+        const maxPsi = estimateMaxPsi(orbital.n, orbital.l, orbital.m, rMax);
+
+        // Same (n,l,m) across all atoms → same group (coherent molecular bonding).
+        // Different (n,l,m) → different group (incoherent, orthogonal orbitals).
+        const key = `${orbital.n}-${orbital.l}-${orbital.m}`;
+        if (!groupMap.has(key)) groupMap.set(key, nextGroupId++);
+        const groupId = groupMap.get(key)!;
+
+        // One entry per orbital; electron count carried as a weight.
+        // Hund's rule: primary spin is the atom's preferred direction.
+        const spin = atom.spinUp ? 0.5 : -0.5;
         configs.push({
-          n: orbital.n,
-          l: orbital.l,
-          m: orbital.m,
-          position: atom.position,
-          rMax,
-          maxPsi: estimateMaxPsi(orbital.n, orbital.l, orbital.m, rMax),
+          n: orbital.n, l: orbital.l, m: orbital.m,
+          position: atom.position, rMax, maxPsi,
+          spin, groupId, electrons: orbital.electrons,
         });
       }
     }
@@ -99,7 +116,7 @@ export class AtomManager {
       return this._molecularParticles;
     }
 
-    const atomConfigs = this.buildAtomConfigs(scale);
+    const atomConfigs = this.buildAtomConfigs();
 
     // Per-orbital maxPsi is already baked into each AtomGPUConfig.
     const data = await pipeline.generate(atomConfigs, particleCount, scale, threshold);

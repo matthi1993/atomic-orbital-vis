@@ -8,10 +8,18 @@ import { SceneManager } from '../renderer/scene-manager.js';
 import { PointCloud } from '../renderer/point-cloud.js';
 import { Nucleus } from '../renderer/nucleus.js';
 import { AxesPlots } from '../renderer/axes-plots.js';
+import { AxisHandles } from '../renderer/axis-handles.js';
+import { SelectionService } from '../services/selection-service.js';
+import { AtomService } from '../services/atom-service.js';
+import { ParticleService } from '../services/particle-service.js';
+import { RenderLoopService } from '../services/render-loop-service.js';
+import { InteractionService } from '../services/interaction-service.js';
 import { theme } from './styles/index.js';
 import './render-panel.js';
 import './atom-editor.js';
-import type { AtomEditorChange, AtomPresetChange, AtomOrbitalSelect } from './atom-editor.js';
+import './atom-list.js';
+import type { AtomEditorChange, AtomPresetChange, AtomOrbitalSelect, AtomSpinFlip } from './atom-editor.js';
+import type { AtomAddRequest, AtomDeleteRequest, AtomSelectRequest } from './atom-list.js';
 
 @customElement('orbital-app')
 export class OrbitalApp extends LitElement {
@@ -20,16 +28,13 @@ export class OrbitalApp extends LitElement {
   @state() private selectedAtomId: string | null = null;
   @state() private atomVersion = 0;
 
-  private sceneManager!: SceneManager;
-  private orbitalPipeline!: OrbitalPipeline;
-  private pointCloud!: PointCloud;
-  private nucleus!: Nucleus;
-  private axesPlots!: AxesPlots;
   private atomManager = new AtomManager();
-  private lastTime = 0;
-  private elapsedTime = 0;
-  private generating = false;
-  private animationId = 0;
+  private sceneManager!: SceneManager;
+  private selectionService!: SelectionService;
+  private atomService!: AtomService;
+  private particleService!: ParticleService;
+  private renderLoopService!: RenderLoopService;
+  private interactionService!: InteractionService;
 
   static styles = [
     ...theme,
@@ -44,13 +49,55 @@ export class OrbitalApp extends LitElement {
       .canvas-container { width: 100%; height: 100%; }
       .canvas-container canvas { display: block; }
 
-      .info {
+      .bottom-right {
         position: absolute;
         bottom: var(--sp-lg);
-        left: var(--sp-lg);
+        right: var(--sp-lg);
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: var(--sp-sm);
+        font-family: var(--font-family);
+        pointer-events: none;
+      }
+
+      .legend {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        background: rgba(10, 10, 30, 0.7);
+        border: 1px solid var(--c-border-subtle);
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: var(--fs-sm);
+        color: var(--c-text-muted);
+      }
+
+      .legend-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--c-text-dim);
+        margin-bottom: 2px;
+      }
+
+      .legend-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .legend-swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        flex-shrink: 0;
+      }
+
+      .info {
         font-size: var(--fs-sm);
         color: var(--c-text-dim);
-        font-family: var(--font-family);
       }
 
       .no-webgpu {
@@ -73,6 +120,23 @@ export class OrbitalApp extends LitElement {
         color: var(--c-text-dim);
         margin-top: var(--sp-sm);
       }
+
+      .left-column {
+        position: absolute;
+        top: var(--sp-lg);
+        left: var(--sp-lg);
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        gap: var(--sp-md);
+        max-height: calc(100vh - 2 * var(--sp-lg));
+        overflow-y: auto;
+      }
+
+      .left-column atom-list,
+      .left-column atom-editor {
+        position: static;
+      }
     `,
   ];
 
@@ -88,21 +152,55 @@ export class OrbitalApp extends LitElement {
 
     return html`
       <div class="canvas-container"></div>
-      <atom-editor
-        .atom=${this.selectedAtomId ? this.atomManager.getAtom(this.selectedAtomId) ?? null : null}
-        .version=${this.atomVersion}
-        @atom-edit=${this.onAtomEdit}
-        @atom-preset=${this.onAtomPreset}
-        @atom-orbital-select=${this.onAtomOrbitalSelect}
-      ></atom-editor>
+      <div class="left-column">
+        <atom-list
+          .atoms=${this.atomManager.all}
+          .selectedAtomId=${this.selectedAtomId}
+          .version=${this.atomVersion}
+          @atom-select=${this.onAtomSelect}
+          @atom-add=${this.onAtomAdd}
+          @atom-delete=${this.onAtomDelete}
+        ></atom-list>
+        <atom-editor
+          .atom=${this.selectedAtomId ? this.atomManager.getAtom(this.selectedAtomId) ?? null : null}
+          .version=${this.atomVersion}
+          @atom-edit=${this.onAtomEdit}
+          @atom-preset=${this.onAtomPreset}
+          @atom-orbital-select=${this.onAtomOrbitalSelect}
+          @atom-spin-flip=${this.onAtomSpinFlip}
+        ></atom-editor>
+      </div>
       <render-panel
         .params=${this.params}
         @param-change=${this.onParamChange}
         @camera-view=${this.onCameraView}
       ></render-panel>
-      <div class="info">Drag to rotate · Scroll to zoom · Click nucleus to edit · WebGPU Compute Shader</div>
+      <div class="bottom-right">
+        <div class="legend">
+          <div class="legend-title">Orbital colours</div>
+          <div class="legend-row">
+            <span class="legend-swatch" style="background: rgb(51, 102, 255)"></span>
+            <span>Half-filled (ψ +)</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-swatch" style="background: rgb(204, 77, 25)"></span>
+            <span>Half-filled (ψ −)</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-swatch" style="background: rgb(38, 255, 255)"></span>
+            <span>Full (ψ +)</span>
+          </div>
+          <div class="legend-row">
+            <span class="legend-swatch" style="background: rgb(255, 230, 13)"></span>
+            <span>Full (ψ −)</span>
+          </div>
+        </div>
+        <div class="info">Drag to rotate · Scroll to zoom · Click nucleus to select</div>
+      </div>
     `;
   }
+
+  /* ─── Lifecycle ─────────────────────────────────── */
 
   async firstUpdated() {
     if (!this.webgpuAvailable) return;
@@ -111,52 +209,62 @@ export class OrbitalApp extends LitElement {
     this.sceneManager = new SceneManager(container);
     await this.sceneManager.init();
 
-    this.orbitalPipeline = new OrbitalPipeline(this.sceneManager.device);
-    this.pointCloud = new PointCloud(this.sceneManager.scene, this.sceneManager.camera);
-    this.nucleus = new Nucleus(this.sceneManager.scene);
-    this.axesPlots = new AxesPlots(this.sceneManager.scene);
+    const pipeline = new OrbitalPipeline(this.sceneManager.device);
+    const pointCloud = new PointCloud(this.sceneManager.scene, this.sceneManager.camera);
+    const nucleus = new Nucleus(this.sceneManager.scene);
+    const axesPlots = new AxesPlots(this.sceneManager.scene);
+    const axisHandles = new AxisHandles(this.sceneManager.scene);
 
-    // Create a single hydrogen atom at the origin
-    const { n, l, m } = this.params;
-    const atom = this.atomManager.addAtom(n, l, m, [0, 0, 0]);
-    atom.setProtons(1);
-    atom.setElectrons(1);
-    this.nucleus.addNucleus(atom.id, atom.position);
-    this.selectedAtomId = atom.id;
-    this.nucleus.selectedId = atom.id;
+    // Wire up domain services
+    this.selectionService = new SelectionService(this.atomManager, nucleus, axisHandles, this.sceneManager);
+    this.atomService = new AtomService(this.atomManager, nucleus, axisHandles, this.sceneManager, this.selectionService);
+    this.particleService = new ParticleService(this.atomManager, pipeline, pointCloud, axesPlots, this.sceneManager);
+    this.renderLoopService = new RenderLoopService(pointCloud, nucleus, axisHandles, axesPlots, this.sceneManager);
+    this.interactionService = new InteractionService(this.sceneManager, nucleus, axisHandles);
 
-    await this.regenerate();
-    this.lastTime = performance.now();
-    this.tick();
+    axisHandles.onDrag = this.onHandleDrag;
+    axisHandles.onDragEnd = this.onHandleDragEnd;
 
-    this.sceneManager.renderer.domElement.addEventListener('pointerdown', this.onPointerDown);
+    // Create initial hydrogen atom at the origin
+    this.atomService.addAtom();
+    this.selectedAtomId = this.selectionService.selectedAtomId;
+
+    this.renderLoopService.params = this.params;
+    await this.particleService.regenerate(this.params);
+    this.renderLoopService.start();
+
+    const canvas = this.interactionService.canvas;
+    canvas.addEventListener('pointerdown', this.onPointerDown);
+    canvas.addEventListener('pointermove', this.onPointerMove);
+    canvas.addEventListener('pointerup', this.onPointerUp);
     window.addEventListener('resize', this.onResize);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    cancelAnimationFrame(this.animationId);
-    this.sceneManager?.renderer.domElement.removeEventListener('pointerdown', this.onPointerDown);
+    this.renderLoopService?.stop();
+    const canvas = this.interactionService?.canvas;
+    canvas?.removeEventListener('pointerdown', this.onPointerDown);
+    canvas?.removeEventListener('pointermove', this.onPointerMove);
+    canvas?.removeEventListener('pointerup', this.onPointerUp);
     window.removeEventListener('resize', this.onResize);
   }
 
+  /* ─── Event handlers (thin delegation to services) ── */
+
   private onResize = () => {
     const container = this.shadowRoot?.querySelector('.canvas-container') as HTMLElement | null;
-    if (container) {
-      this.sceneManager.resize(container.clientWidth, container.clientHeight);
-    }
+    if (container) this.sceneManager.resize(container.clientWidth, container.clientHeight);
   };
 
   private onParamChange = (e: CustomEvent<{ key: string; value: number | boolean | string }>) => {
     const { key, value } = e.detail;
-    const next = { ...this.params, [key]: value };
+    this.params = { ...this.params, [key]: value };
+    this.renderLoopService.params = this.params;
 
-    this.params = next;
-
-    // Global render params that affect generation → mark all atoms dirty
     if (key === 'count' || key === 'threshold' || key === 'scale') {
       this.atomManager.markAllDirty();
-      this.regenerate();
+      this.particleService.regenerate(this.params);
     }
   };
 
@@ -165,150 +273,80 @@ export class OrbitalApp extends LitElement {
   };
 
   private onPointerDown = (e: PointerEvent) => {
-    const canvas = this.sceneManager.renderer.domElement;
-    const rect = canvas.getBoundingClientRect();
-    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const result = this.interactionService.handlePointerDown(e);
+    if (result.type === 'handle') return;
 
-    const hitId = this.nucleus.hitTest(ndcX, ndcY, this.sceneManager.camera);
-    if (hitId) {
-      this.selectedAtomId = hitId;
-      this.atomManager.selectAtom(hitId);
-      this.nucleus.selectedId = hitId;
-      this.sceneManager.markDirty();
+    if (result.type === 'nucleus') {
+      this.selectionService.select(result.atomId);
+    } else {
+      this.selectionService.deselect();
     }
+    this.selectedAtomId = this.selectionService.selectedAtomId;
+    this.atomVersion++;
+  };
+
+  private onPointerMove = (e: PointerEvent) => {
+    this.interactionService.handlePointerMove(e);
+  };
+
+  private onPointerUp = () => {
+    this.interactionService.handlePointerUp();
+  };
+
+  private onAtomSelect = (e: CustomEvent<AtomSelectRequest>) => {
+    this.selectionService.select(e.detail.atomId);
+    this.selectedAtomId = this.selectionService.selectedAtomId;
+    this.atomVersion++;
+  };
+
+  private onAtomAdd = (_e: CustomEvent<AtomAddRequest>) => {
+    const copyFrom = this.selectedAtomId ? this.atomManager.getAtom(this.selectedAtomId) : undefined;
+    this.atomService.addAtom(copyFrom);
+    this.selectedAtomId = this.selectionService.selectedAtomId;
+    this.particleService.regenerate(this.params);
+    this.atomVersion++;
+  };
+
+  private onAtomDelete = (e: CustomEvent<AtomDeleteRequest>) => {
+    this.atomService.removeAtom(e.detail.atomId);
+    this.selectedAtomId = this.selectionService.selectedAtomId;
+    this.particleService.regenerate(this.params);
+    this.atomVersion++;
   };
 
   private onAtomEdit = (e: CustomEvent<AtomEditorChange>) => {
-    const { atomId, key, value } = e.detail;
-    const atom = this.atomManager.getAtom(atomId);
-    if (!atom) return;
-
-    switch (key) {
-      case 'protons':
-        atom.setProtons(value);
-        break;
-      case 'electrons':
-        atom.setElectrons(value);
-        break;
-      case 'posX': {
-        const pos = [...atom.position] as [number, number, number];
-        pos[0] = value;
-        atom.setPosition(pos);
-        this.nucleus.updatePosition(atomId, pos);
-        break;
-      }
-      case 'posY': {
-        const pos = [...atom.position] as [number, number, number];
-        pos[1] = value;
-        atom.setPosition(pos);
-        this.nucleus.updatePosition(atomId, pos);
-        break;
-      }
-      case 'posZ': {
-        const pos = [...atom.position] as [number, number, number];
-        pos[2] = value;
-        atom.setPosition(pos);
-        this.nucleus.updatePosition(atomId, pos);
-        break;
-      }
-    }
-
-    // Any atom property change invalidates the molecular orbital
-    this.atomManager.markAllDirty();
-    this.regenerate();
-    // Bump version to force atom-editor re-render (same object reference)
+    this.atomService.editAtom(e.detail.atomId, e.detail.key, e.detail.value);
+    this.particleService.regenerate(this.params);
     this.atomVersion++;
   };
 
   private onAtomPreset = (e: CustomEvent<AtomPresetChange>) => {
     const { atomId, preset } = e.detail;
-    const atom = this.atomManager.getAtom(atomId);
-    if (!atom) return;
-
-    atom.setProtons(preset.Z);
-    atom.setElectrons(preset.e); // n/l/m auto-derived from electron config
-    atom.setSelectedLayer('outer');
-    atom.setSelectedOrbitalIndex(null);
-
-    this.atomManager.markAllDirty();
-    this.regenerate();
+    this.atomService.applyPreset(atomId, preset.Z, preset.e);
+    this.particleService.regenerate(this.params);
     this.atomVersion++;
   };
 
   private onAtomOrbitalSelect = (e: CustomEvent<AtomOrbitalSelect>) => {
-    const { atomId, layer, orbitalIndex } = e.detail;
-    const atom = this.atomManager.getAtom(atomId);
-    if (!atom) return;
-
-    atom.setSelectedLayer(layer);
-    atom.setSelectedOrbitalIndex(orbitalIndex);
-    this.atomManager.markAllDirty();
-    this.regenerate();
+    this.atomService.selectOrbital(e.detail.atomId, e.detail.layer, e.detail.orbitalIndex);
+    this.particleService.regenerate(this.params);
     this.atomVersion++;
   };
 
-  private async regenerate() {
-    if (this.generating) return;
-    this.generating = true;
+  private onAtomSpinFlip = (e: CustomEvent<AtomSpinFlip>) => {
+    this.atomService.flipSpin(e.detail.atomId);
+    this.particleService.regenerate(this.params);
+    this.atomVersion++;
+  };
 
-    const { count, threshold, scale } = this.params;
+  private onHandleDrag = (evt: import('../renderer/axis-handles.js').HandleDragEvent) => {
+    this.atomService.handleDrag(evt);
+    this.atomVersion++;
+  };
 
-    // Regenerate only dirty atoms, then merge all particle data
-    const { positions, colors, totalCount } = await this.atomManager.regenerateAll(
-      this.orbitalPipeline, count, scale, threshold,
-    );
-    const usedCount = Math.max(totalCount, 1);
-
-    // Extract stride-3 positions and per-point sizes from stride-4 orbital output
-    const pos3 = new Float32Array(usedCount * 3);
-    const sizes = new Float32Array(usedCount);
-    for (let i = 0; i < usedCount; i++) {
-      pos3[i * 3 + 0] = positions[i * 4 + 0];
-      pos3[i * 3 + 1] = positions[i * 4 + 1];
-      pos3[i * 3 + 2] = positions[i * 4 + 2];
-      // Color alpha encodes probability (0.4–1.0); map to size multiplier
-      const alpha = colors[i * 4 + 3];
-      sizes[i] = alpha * alpha;
-    }
-
-    this.pointCloud.create(usedCount, colors, this.params.pointSize, sizes);
-    this.pointCloud.setPositions(pos3);
-    this.sceneManager.markDirty();
-
-    // Show wave-function plots for the currently selected atom
-    const selected = this.atomManager.selectedAtom;
-    if (selected) {
-      this.axesPlots.update(selected.n, selected.l, selected.m, scale);
-    }
-    this.axesPlots.showAxes = this.params.showAxes;
-
-    this.generating = false;
-  }
-
-  private tick = () => {
-    this.animationId = requestAnimationFrame(this.tick);
-
-    const now = performance.now();
-    const dt = Math.min((now - this.lastTime) / 1000, 0.05);
-    this.lastTime = now;
-    this.elapsedTime += dt;
-
-    this.pointCloud.pointSize = this.params.pointSize;
-    this.pointCloud.opacity = this.params.electronOpacity;
-    this.pointCloud.opaqueMode = this.params.opaqueMode;
-    this.pointCloud.visible = this.params.showElectrons;
-    this.pointCloud.cutPlane = this.params.cutPlane;
-    this.sceneManager.orthographic = this.params.orthographic;
-    this.pointCloud.activeCamera = this.sceneManager.camera;
-    this.sceneManager.autoRotateSpeed = this.params.rotSpeed;
-    this.axesPlots.showAxes = this.params.showAxes;
-
-    this.pointCloud.updateIfNeeded();
-    this.nucleus.update(this.elapsedTime);
-    const rendered = this.sceneManager.render();
-    // If nothing rendered, skip next frame's heavy work unless something changes
-    if (!rendered) return;
+  private onHandleDragEnd = () => {
+    this.atomService.handleDragEnd();
+    this.particleService.regenerate(this.params);
   };
 }
 

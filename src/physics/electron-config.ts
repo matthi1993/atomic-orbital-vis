@@ -17,6 +17,7 @@ export interface OrbitalOccupancy {
 /**
  * Compute the electron configuration for a given number of electrons,
  * following the Aufbau principle and Hund's rules.
+ * Z defaults to numElectrons (neutral atom) if not provided.
  */
 export function electronConfiguration(numElectrons: number): OrbitalOccupancy[] {
   const orbitals: OrbitalOccupancy[] = [];

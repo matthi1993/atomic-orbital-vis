@@ -1,8 +1,24 @@
 /**
- * Per-orbital electron density compute shader.
+ * Molecular orbital compute shader with spin-dependent interference.
  *
- * Each thread picks a random orbital, samples in spherical coordinates
- * around that atom, and uses |ψ|²·r² rejection sampling to place a particle.
+ * Physics model (per-group sampling with coherent molecular bonding):
+ *   Orbitals are grouped by quantum numbers (n, l, m).
+ *   Each particle samples ONE group at random, then evaluates the
+ *   coherent wavefunction within that group:
+ *     ψ_g(r) = Σ sign_i · ψ_i(r − R_i)
+ *
+ *   This preserves the angular shape of each orbital type when viewing
+ *   multiple orbitals simultaneously (e.g. all three 2p orbitals show
+ *   three separate dumbbell lobes rather than collapsing to a sphere).
+ *
+ *   Coherent summation within a group captures molecular bonding between
+ *   the same orbital type on different atoms (e.g. H₂ 1s + 1s).
+ *
+ * The sign within each group is determined relative to the group's first
+ * entry (the reference):
+ *   – same spin as reference → sign = −1  (antibonding, Pauli antisymmetry)
+ *   – opposite spin          → sign = +1  (bonding, singlet pairing)
+ *   – the reference itself   → sign = +1
  */
 export const orbitalShaderCode = /* wgsl */`
   struct GlobalUniforms {
@@ -11,8 +27,8 @@ export const orbitalShaderCode = /* wgsl */`
     threshold: f32,
     seed: f32,
     num_atoms: f32,
-    _pad0: f32,
-    _pad1: f32,
+    max_coherent_psi: f32,
+    num_groups: f32,
     _pad2: f32,
   };
 
@@ -24,7 +40,9 @@ export const orbitalShaderCode = /* wgsl */`
     pos_y: f32,
     pos_z: f32,
     r_max: f32,
-    max_psi: f32,
+    max_psi_signed: f32,   // |max_psi|; sign encodes spin (+up, −down)
+    group_id: f32,
+    electrons: f32,         // 1 or 2 — density weight
   };
 
   struct Particle {
@@ -138,6 +156,8 @@ export const orbitalShaderCode = /* wgsl */`
 
     let num_atoms = i32(uniforms.num_atoms);
     let threshold = uniforms.threshold;
+    let s = uniforms.scale;
+    let max_group_rho = uniforms.max_coherent_psi;
 
     var seed = pcg_hash(i * 1099087573u + u32(uniforms.seed));
 
@@ -145,36 +165,111 @@ export const orbitalShaderCode = /* wgsl */`
     var color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
 
     for (var attempt: i32 = 0; attempt < 192; attempt++) {
+      // ── 1. Importance-sample: pick a random orbital as the centre ──
       let oidx = i32(floor(rand(&seed) * f32(num_atoms))) % num_atoms;
       let orbital = atoms[oidx];
+      let sample_gid = i32(orbital.group_id);
 
       let r = rand(&seed) * orbital.r_max;
       let cosTheta = 2.0 * rand(&seed) - 1.0;
       let phi = rand(&seed) * 2.0 * PI;
 
-      let psi_val = compute_psi(i32(orbital.n), i32(orbital.l), i32(orbital.m), r, cosTheta, phi);
-      let psi2r2 = psi_val * psi_val * r * r;
+      // Convert to world-space Cartesian
+      let sinTheta = sqrt(max(1.0 - cosTheta * cosTheta, 0.0));
+      let wx = orbital.pos_x + s * r * sinTheta * cos(phi);
+      let wy = orbital.pos_y + s * r * sinTheta * sin(phi);
+      let wz = orbital.pos_z + s * r * cosTheta;
 
-      var prob: f32 = 0.0;
-      if (orbital.max_psi > 0.0) {
-        prob = psi2r2 / orbital.max_psi;
+      // ── 2. Coherent ψ for the sampled group only ──
+      //    Same (n,l,m) on different atoms → coherent (molecular bonding)
+      //    Each particle belongs to one orbital group, preserving its shape
+      var psi_total: f32 = 0.0;
+      var ref_spin: f32 = 0.0;
+      var max_electrons: f32 = 0.0;
+
+      for (var j: i32 = 0; j < num_atoms; j++) {
+        let aj = atoms[j];
+        if (i32(aj.group_id) != sample_gid) { continue; }
+
+        let aj_spin_sign = sign(aj.max_psi_signed);
+
+        // World → local displacement (undo orbital scale)
+        let dx = (wx - aj.pos_x) / s;
+        let dy = (wy - aj.pos_y) / s;
+        let dz = (wz - aj.pos_z) / s;
+        let local_r = sqrt(dx * dx + dy * dy + dz * dz);
+
+        // Skip if outside this orbital's radial extent
+        if (local_r > aj.r_max || local_r < 1e-8) { continue; }
+
+        let local_cosTheta = dz / local_r;
+        let local_phi = atan2(dy, dx);
+
+        let psi_j = compute_psi(
+          i32(aj.n), i32(aj.l), i32(aj.m),
+          local_r, local_cosTheta, local_phi
+        );
+
+        // Weight by √electrons so density is n·|ψ|² (not n²·|ψ|²).
+        let weight = sqrt(aj.electrons);
+
+        // Interference sign within group (multi-atom molecular bonding):
+        //   first entry in group:     reference, phase = +1
+        //   same spin as reference:   −1  (antibonding / Pauli antisymmetry)
+        //   opposite spin:            +1  (bonding / singlet pairing)
+        var phase: f32 = 1.0;
+        if (ref_spin == 0.0) {
+          ref_spin = aj_spin_sign;
+        } else if (aj_spin_sign * ref_spin > 0.0) {
+          phase = -1.0;
+        }
+
+        psi_total += phase * weight * psi_j;
+        max_electrons = max(max_electrons, aj.electrons);
       }
 
+      let rho = psi_total * psi_total;
+
+      // Weight by r² of the importance-sampling orbital for volume element
+      let rho_r2 = rho * r * r;
+
+      var prob: f32 = 0.0;
+      if (max_group_rho > 0.0) {
+        prob = rho_r2 / max_group_rho;
+      }
+
+      prob = min(prob, 1.0);
       if (prob < threshold) { continue; }
       if (rand(&seed) > prob) { continue; }
 
-      let sinTheta = sqrt(max(1.0 - cosTheta * cosTheta, 0.0));
-      let x = orbital.pos_x + r * sinTheta * cos(phi);
-      let y = orbital.pos_y + r * sinTheta * sin(phi);
-      let z = orbital.pos_z + r * cosTheta;
+      pos = vec4<f32>(wx, wy, wz, 1.0);
 
-      pos = vec4<f32>(x, y, z, 1.0);
-      let t = min(prob * 2.0, 1.0);
-      if (psi_val >= 0.0) {
-        color = vec4<f32>(0.2 + 0.6 * t, 0.4 + 0.5 * t, 1.0, 0.4 + 0.6 * t);
+      // Colour by ψ sign and fullness.
+      // High probability → bright but desaturated (white-ish).
+      // Low probability  → dark and more saturated (vivid).
+      let t = pow(min(prob * 2.0, 1.0), 1.5);
+      let sat = 1.0 - 0.3 * pow(t, 3.0);    // only the very peak desaturates slightly
+      let brightness = 0.35 + 0.65 * t;      // high prob → bright, low prob → dark
+      let is_full = max_electrons >= 2.0;
+
+      var base: vec3<f32>;
+      if (psi_total >= 0.0) {
+        if (is_full) {
+          base = vec3<f32>(0.0, 0.85, 1.0);   // cyan
+        } else {
+          base = vec3<f32>(0.15, 0.35, 1.0);  // blue
+        }
       } else {
-        color = vec4<f32>(1.0, 0.3 + 0.4 * t, 0.2 + 0.3 * t, 0.4 + 0.6 * t);
+        if (is_full) {
+          base = vec3<f32>(1.0, 0.8, 0.0);    // gold
+        } else {
+          base = vec3<f32>(1.0, 0.25, 0.05);  // orange-red
+        }
       }
+
+      // Mix base toward white by (1-sat), then scale by brightness
+      let rgb = mix(vec3<f32>(1.0, 1.0, 1.0), base, sat) * brightness;
+      color = vec4<f32>(rgb, t);
       break;
     }
 

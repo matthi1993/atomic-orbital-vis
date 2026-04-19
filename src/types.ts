@@ -6,12 +6,14 @@ export interface OrbitalParams {
   threshold: number;
   scale: number;
   pointSize: number;
+  variablePointSize: boolean;
   rotSpeed: number;
   electronOpacity: number;
   opaqueMode: boolean;
   orthographic: boolean;
   showAxes: boolean;
   showElectrons: boolean;
+  fixedScreenSize: boolean;
   cutPlane: 'none' | 'x' | 'y' | 'z';
 }
 

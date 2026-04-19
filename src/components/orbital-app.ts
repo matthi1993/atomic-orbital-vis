@@ -8,6 +8,7 @@ import { SceneManager } from '../renderer/scene-manager.js';
 import { PointCloud } from '../renderer/point-cloud.js';
 import { Nucleus } from '../renderer/nucleus.js';
 import { AxesPlots } from '../renderer/axes-plots.js';
+import { AxisHandles } from '../renderer/axis-handles.js';
 import { theme } from './styles/index.js';
 import './render-panel.js';
 import './atom-editor.js';
@@ -27,6 +28,7 @@ export class OrbitalApp extends LitElement {
   private pointCloud!: PointCloud;
   private nucleus!: Nucleus;
   private axesPlots!: AxesPlots;
+  private axisHandles!: AxisHandles;
   private atomManager = new AtomManager();
   private lastTime = 0;
   private elapsedTime = 0;
@@ -144,6 +146,9 @@ export class OrbitalApp extends LitElement {
     this.pointCloud = new PointCloud(this.sceneManager.scene, this.sceneManager.camera);
     this.nucleus = new Nucleus(this.sceneManager.scene);
     this.axesPlots = new AxesPlots(this.sceneManager.scene);
+    this.axisHandles = new AxisHandles(this.sceneManager.scene);
+    this.axisHandles.onDrag = this.onHandleDrag;
+    this.axisHandles.onDragEnd = this.onHandleDragEnd;
 
     // Create a single hydrogen atom at the origin
     const { n, l, m } = this.params;
@@ -153,19 +158,26 @@ export class OrbitalApp extends LitElement {
     this.nucleus.addNucleus(atom.id, atom.position);
     this.selectedAtomId = atom.id;
     this.nucleus.selectedId = atom.id;
+    this.axisHandles.attach(atom.id, atom.position);
 
     await this.regenerate();
     this.lastTime = performance.now();
     this.tick();
 
-    this.sceneManager.renderer.domElement.addEventListener('pointerdown', this.onPointerDown);
+    const canvas = this.sceneManager.renderer.domElement;
+    canvas.addEventListener('pointerdown', this.onPointerDown);
+    canvas.addEventListener('pointermove', this.onPointerMove);
+    canvas.addEventListener('pointerup', this.onPointerUp);
     window.addEventListener('resize', this.onResize);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     cancelAnimationFrame(this.animationId);
-    this.sceneManager?.renderer.domElement.removeEventListener('pointerdown', this.onPointerDown);
+    const canvas = this.sceneManager?.renderer.domElement;
+    canvas?.removeEventListener('pointerdown', this.onPointerDown);
+    canvas?.removeEventListener('pointermove', this.onPointerMove);
+    canvas?.removeEventListener('pointerup', this.onPointerUp);
     window.removeEventListener('resize', this.onResize);
   }
 
@@ -193,20 +205,55 @@ export class OrbitalApp extends LitElement {
     this.sceneManager.lookAlongAxis(e.detail.axis as 'x' | 'y' | 'z');
   };
 
-  private onPointerDown = (e: PointerEvent) => {
+  private getNdc(e: PointerEvent): [number, number] {
     const canvas = this.sceneManager.renderer.domElement;
     const rect = canvas.getBoundingClientRect();
-    const ndcX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    const ndcY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    return [
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1,
+    ];
+  }
+
+  private onPointerDown = (e: PointerEvent) => {
+    const [ndcX, ndcY] = this.getNdc(e);
+
+    // Try axis handles first
+    if (this.axisHandles.pointerDown(ndcX, ndcY, this.sceneManager.camera)) {
+      (this.sceneManager.controls as any).enabled = false;
+      this.sceneManager.markDirty();
+      return;
+    }
 
     const hitId = this.nucleus.hitTest(ndcX, ndcY, this.sceneManager.camera);
     if (hitId) {
       this.selectedAtomId = hitId;
       this.atomManager.selectAtom(hitId);
       this.nucleus.selectedId = hitId;
+      const atom = this.atomManager.getAtom(hitId);
+      this.axisHandles.attach(hitId, atom?.position ?? null);
+      this.sceneManager.markDirty();
+      this.atomVersion++;
+    } else {
+      this.selectedAtomId = null;
+      this.nucleus.selectedId = null;
+      this.axisHandles.attach(null, null);
       this.sceneManager.markDirty();
       this.atomVersion++;
     }
+  };
+
+  private onPointerMove = (e: PointerEvent) => {
+    const [ndcX, ndcY] = this.getNdc(e);
+    if (this.axisHandles.pointerMove(ndcX, ndcY, this.sceneManager.camera)) {
+      this.sceneManager.markDirty();
+    }
+  };
+
+  private onPointerUp = () => {
+    if (this.axisHandles.isDragging) {
+      (this.sceneManager.controls as any).enabled = true;
+    }
+    this.axisHandles.pointerUp();
   };
 
   private onAtomSelect = (e: CustomEvent<AtomSelectRequest>) => {
@@ -214,19 +261,25 @@ export class OrbitalApp extends LitElement {
     this.selectedAtomId = atomId;
     this.atomManager.selectAtom(atomId);
     this.nucleus.selectedId = atomId;
+    const atom = this.atomManager.getAtom(atomId);
+    this.axisHandles.attach(atomId, atom?.position ?? null);
     this.sceneManager.markDirty();
     this.atomVersion++;
   };
 
-  private onAtomAdd = (e: CustomEvent<AtomAddRequest>) => {
-    const { position } = e.detail;
+  private onAtomAdd = (_e: CustomEvent<AtomAddRequest>) => {
+    const selectedAtom = this.selectedAtomId ? this.atomManager.getAtom(this.selectedAtomId) : null;
+    const position: [number, number, number] = selectedAtom
+      ? [...selectedAtom.position] as [number, number, number]
+      : [0, 0, 0];
     const atom = this.atomManager.addAtom(1, 0, 0, position);
-    atom.setProtons(1);
-    atom.setElectrons(1);
+    atom.setProtons(selectedAtom?.protons ?? 1);
+    atom.setElectrons(selectedAtom?.electrons ?? 1);
     this.nucleus.addNucleus(atom.id, atom.position);
     this.selectedAtomId = atom.id;
     this.atomManager.selectAtom(atom.id);
     this.nucleus.selectedId = atom.id;
+    this.axisHandles.attach(atom.id, atom.position);
     this.atomManager.markAllDirty();
     this.regenerate();
     this.atomVersion++;
@@ -243,6 +296,10 @@ export class OrbitalApp extends LitElement {
       if (this.selectedAtomId) {
         this.atomManager.selectAtom(this.selectedAtomId);
         this.nucleus.selectedId = this.selectedAtomId;
+        const sel = this.atomManager.getAtom(this.selectedAtomId);
+        this.axisHandles.attach(this.selectedAtomId, sel?.position ?? null);
+      } else {
+        this.axisHandles.attach(null, null);
       }
     }
     this.atomManager.markAllDirty();
@@ -267,6 +324,7 @@ export class OrbitalApp extends LitElement {
         pos[0] = value;
         atom.setPosition(pos);
         this.nucleus.updatePosition(atomId, pos);
+        this.axisHandles.updatePosition(pos);
         break;
       }
       case 'posY': {
@@ -274,6 +332,7 @@ export class OrbitalApp extends LitElement {
         pos[1] = value;
         atom.setPosition(pos);
         this.nucleus.updatePosition(atomId, pos);
+        this.axisHandles.updatePosition(pos);
         break;
       }
       case 'posZ': {
@@ -281,6 +340,7 @@ export class OrbitalApp extends LitElement {
         pos[2] = value;
         atom.setPosition(pos);
         this.nucleus.updatePosition(atomId, pos);
+        this.axisHandles.updatePosition(pos);
         break;
       }
     }
@@ -290,6 +350,26 @@ export class OrbitalApp extends LitElement {
     this.regenerate();
     // Bump version to force atom-editor re-render (same object reference)
     this.atomVersion++;
+  };
+
+  private onHandleDrag = (evt: import('../renderer/axis-handles.js').HandleDragEvent) => {
+    const atom = this.atomManager.getAtom(evt.atomId);
+    if (!atom) return;
+    const snapped: [number, number, number] = [
+      Math.round(evt.position[0] * 2) / 2,
+      Math.round(evt.position[1] * 2) / 2,
+      Math.round(evt.position[2] * 2) / 2,
+    ];
+    atom.setPosition(snapped);
+    this.nucleus.updatePosition(evt.atomId, snapped);
+    this.axisHandles.updatePosition(snapped);
+    this.sceneManager.markDirty();
+    this.atomVersion++;
+  };
+
+  private onHandleDragEnd = () => {
+    this.atomManager.markAllDirty();
+    this.regenerate();
   };
 
   private onAtomPreset = (e: CustomEvent<AtomPresetChange>) => {
@@ -377,6 +457,7 @@ export class OrbitalApp extends LitElement {
 
     this.pointCloud.updateIfNeeded();
     this.nucleus.update(this.elapsedTime);
+    this.axisHandles.updateScale(this.sceneManager.camera);
     const rendered = this.sceneManager.render();
     // If nothing rendered, skip next frame's heavy work unless something changes
     if (!rendered) return;

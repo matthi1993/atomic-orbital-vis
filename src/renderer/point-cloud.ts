@@ -10,6 +10,7 @@ export class PointCloud {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera | THREE.OrthographicCamera;
   private _pointSize = 4.0;
+  private _variablePointSize = true;
   private _opacity = 0.75;
   private _opaqueMode = false;
   private _visible = true;
@@ -91,7 +92,7 @@ export class PointCloud {
     if (!this.mesh || !this.storedPositions) return;
 
     const positions = this.storedPositions;
-    const sizes = this.storedSizes;
+    const sizes = this._variablePointSize ? this.storedSizes : null;
     const q = this.camera.quaternion;
     const baseSize = this._pointSize * SIZE_SCALE;
 
@@ -119,6 +120,12 @@ export class PointCloud {
 
   set pointSize(size: number) {
     this._pointSize = size;
+  }
+
+  set variablePointSize(value: boolean) {
+    if (this._variablePointSize === value) return;
+    this._variablePointSize = value;
+    this.matrixDirty = true;
   }
 
   set opacity(value: number) {

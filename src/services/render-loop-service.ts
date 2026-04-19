@@ -46,6 +46,7 @@ export class RenderLoopService {
 
     const p = this._params;
     this.pointCloud.pointSize = p.pointSize;
+    this.pointCloud.variablePointSize = p.variablePointSize;
     this.pointCloud.opacity = p.electronOpacity;
     this.pointCloud.opaqueMode = p.opaqueMode;
     this.pointCloud.visible = p.showElectrons;

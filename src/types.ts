@@ -6,6 +6,7 @@ export interface OrbitalParams {
   threshold: number;
   scale: number;
   pointSize: number;
+  variablePointSize: boolean;
   rotSpeed: number;
   electronOpacity: number;
   opaqueMode: boolean;

@@ -153,6 +153,16 @@ export class RenderPanel extends LitElement {
           ${this.sliderFromDef('threshold', PARAM_DEFS.threshold!, p.threshold)}
           ${this.sliderFromDef('scale', PARAM_DEFS.scale!, p.scale)}
           ${this.sliderFromDef('pointSize', PARAM_DEFS.pointSize!, p.pointSize)}
+          <div class="toggle-row">
+            <input
+              type="checkbox"
+              id="variablePointSize"
+              .checked=${p.variablePointSize}
+              @change=${(e: Event) =>
+                this.emit('variablePointSize', (e.target as HTMLInputElement).checked)}
+            />
+            <label for="variablePointSize">Variable Point Size</label>
+          </div>
           ${this.sliderFromDef('electronOpacity', PARAM_DEFS.electronOpacity!, p.electronOpacity)}
           <div class="toggle-row">
             <input

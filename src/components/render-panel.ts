@@ -50,7 +50,7 @@ export class RenderPanel extends LitElement {
   /* ── track which sub-sections are open ─────────────── */
   private _openSections: Record<string, boolean> = {
     overlays: false,
-    particles: false,
+    pointCloud: false,
     camera: false,
     cutPlane: false,
   };
@@ -136,9 +136,19 @@ export class RenderPanel extends LitElement {
             />
             <label for="showAxes">Axes</label>
           </div>
+          <div class="toggle-row">
+            <input
+              type="checkbox"
+              id="showElectrons"
+              .checked=${p.showElectrons}
+              @change=${(e: Event) =>
+                this.emit('showElectrons', (e.target as HTMLInputElement).checked)}
+            />
+            <label for="showElectrons">Electron Cloud</label>
+          </div>
         `)}
 
-        ${this.renderSection('particles', 'Particles', html`
+        ${this.renderSection('pointCloud', 'Point Cloud', html`
           ${this.sliderFromDef('count', PARAM_DEFS.count!, p.count)}
           ${this.sliderFromDef('threshold', PARAM_DEFS.threshold!, p.threshold)}
           ${this.sliderFromDef('scale', PARAM_DEFS.scale!, p.scale)}
@@ -153,16 +163,6 @@ export class RenderPanel extends LitElement {
                 this.emit('opaqueMode', (e.target as HTMLInputElement).checked)}
             />
             <label for="opaqueMode">Opaque Rendering</label>
-          </div>
-          <div class="toggle-row">
-            <input
-              type="checkbox"
-              id="showElectrons"
-              .checked=${p.showElectrons}
-              @change=${(e: Event) =>
-                this.emit('showElectrons', (e.target as HTMLInputElement).checked)}
-            />
-            <label for="showElectrons">Electron Cloud</label>
           </div>
         `)}
 

@@ -170,11 +170,11 @@ export const orbitalShaderCode = /* wgsl */`
       let z = orbital.pos_z + s * r * cosTheta;
 
       pos = vec4<f32>(x, y, z, 1.0);
-      let t = min(prob * 2.0, 1.0);
+      let t = pow(min(prob * 2.0, 1.0), 1.5);
       if (psi_val >= 0.0) {
-        color = vec4<f32>(0.2 + 0.6 * t, 0.4 + 0.5 * t, 1.0, 0.4 + 0.6 * t);
+        color = vec4<f32>(0.2 + 0.6 * t, 0.4 + 0.5 * t, 1.0, t);
       } else {
-        color = vec4<f32>(1.0, 0.3 + 0.4 * t, 0.2 + 0.3 * t, 0.4 + 0.6 * t);
+        color = vec4<f32>(1.0, 0.3 + 0.4 * t, 0.2 + 0.3 * t, t);
       }
       break;
     }

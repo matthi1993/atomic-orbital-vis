@@ -18,10 +18,10 @@ export class SceneManager {
     this.renderer.setClearColor(0x050510);
 
     this.scene = new THREE.Scene();
-    this.perspCamera = new THREE.PerspectiveCamera(55, 1, 0.1, 1000);
+    this.perspCamera = new THREE.PerspectiveCamera(55, 1, 0.01, 1000);
     this.perspCamera.position.set(0, 15, 30);
 
-    this.orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
+    this.orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 5000);
     this.orthoCamera.position.copy(this.perspCamera.position);
 
     container.appendChild(this.renderer.domElement);
@@ -30,8 +30,8 @@ export class SceneManager {
     this.controls = new OrbitControls(this.perspCamera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
-    this.controls.minDistance = 2;
-    this.controls.maxDistance = 200;
+    this.controls.minDistance = 0.5;
+    this.controls.maxDistance = 1000;
     this.controls.autoRotate = false;
     this.controls.autoRotateSpeed = 0;
   }

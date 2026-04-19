@@ -38,9 +38,9 @@ export class ParticleService {
       pos3[i * 3 + 0] = positions[i * 4 + 0];
       pos3[i * 3 + 1] = positions[i * 4 + 1];
       pos3[i * 3 + 2] = positions[i * 4 + 2];
-      // Color alpha encodes probability (0.4–1.0); map to size multiplier
-      const alpha = colors[i * 4 + 3];
-      sizes[i] = alpha * alpha;
+      // Color alpha encodes probability (0–1); map to size multiplier
+      const prob = colors[i * 4 + 3];
+      sizes[i] = 0.001 + 0.999 * prob;
     }
 
     this.pointCloud.create(usedCount, colors, params.pointSize, sizes);

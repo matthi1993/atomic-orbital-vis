@@ -3,7 +3,7 @@ import type { GeneratedParticles } from '../types.js';
 
 const PARTICLE_STRIDE = 32; // pos(vec4) + color(vec4) = 8 floats × 4 bytes
 const UNIFORM_SIZE = 32;    // 8 floats × 4 bytes
-const ATOM_STRIDE = 32;     // 8 floats × 4 bytes per AtomConfig
+const ATOM_STRIDE = 40;     // 10 floats × 4 bytes per AtomConfig
 
 export interface AtomGPUConfig {
   n: number;
@@ -13,6 +13,8 @@ export interface AtomGPUConfig {
   rMax: number;
   maxPsi: number;
   spin: number; // +0.5 (up) or -0.5 (down)
+  groupId: number; // orbitals with same (n,l,m) share a group
+  electrons: number; // 1 or 2 — density weight for this orbital
 }
 
 export class OrbitalPipeline {
@@ -108,24 +110,34 @@ export class OrbitalPipeline {
     this.uniformData[2] = threshold;
     this.uniformData[3] = (performance.now() * 1000) % 16777216;
     this.uniformData[4] = atomCount;
-    // Compute a conservative upper bound for the coherent ψ² sum
-    // per spin channel: (Σ √maxPsi_i)² bounds the max of |Σψ_i|²·r².
-    let sumAmplUp = 0;
-    let sumAmplDown = 0;
+    // Per-group upper bound: within each (n,l,m) group, compute
+    // (Σ √maxPsi)² per spin channel; sum across groups for the
+    // incoherent total normalization.
+    // Per-group upper bound: within each (n,l,m) group, compute
+    // (Σ √(electrons·maxPsi))²; sum across groups for incoherent total.
+    const groupAmpl = new Map<number, number>();
     for (const a of atomConfigs) {
-      const ampl = Math.sqrt(a.maxPsi);
-      if (a.spin >= 0) sumAmplUp += ampl; else sumAmplDown += ampl;
+      const ampl = Math.sqrt(a.electrons * a.maxPsi);
+      const g = a.groupId;
+      groupAmpl.set(g, (groupAmpl.get(g) ?? 0) + ampl);
     }
-    this.uniformData[5] = Math.max(sumAmplUp * sumAmplUp, sumAmplDown * sumAmplDown, 1e-30);
-    // [6–7] pad
+    let totalMaxPsi = 0;
+    const allGroups = new Set(groupAmpl.keys());
+    for (const g of allGroups) {
+      const amp = groupAmpl.get(g) ?? 0;
+      totalMaxPsi += amp * amp;
+    }
+    this.uniformData[5] = Math.max(totalMaxPsi, 1e-30);
+    this.uniformData[6] = allGroups.size; // num_groups
+    // [7] pad
     this.device.queue.writeBuffer(this.uniformBuffer!, 0, this.uniformData);
 
     // Write atom configs: [n, l, m, pos_x, pos_y, pos_z, r_max, max_psi_signed] per atom
     // Spin is encoded in the sign of max_psi: positive = spin-up, negative = spin-down.
-    const atomData = new Float32Array(atomCount * 8);
+    const atomData = new Float32Array(atomCount * 10);
     for (let i = 0; i < atomCount; i++) {
       const a = atomConfigs[i];
-      const off = i * 8;
+      const off = i * 10;
       atomData[off + 0] = a.n;
       atomData[off + 1] = a.l;
       atomData[off + 2] = a.m;
@@ -134,6 +146,8 @@ export class OrbitalPipeline {
       atomData[off + 5] = a.position[2];
       atomData[off + 6] = a.rMax;
       atomData[off + 7] = a.spin >= 0 ? a.maxPsi : -a.maxPsi;
+      atomData[off + 8] = a.groupId;
+      atomData[off + 9] = a.electrons;
     }
     this.device.queue.writeBuffer(this.atomBuffer!, 0, atomData);
 

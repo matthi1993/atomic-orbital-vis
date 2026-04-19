@@ -1,19 +1,21 @@
 /**
  * Molecular orbital compute shader with spin-dependent interference.
  *
- * Physics model:
- *   ψ_total(r) = Σ sign_i · ψ_i(r − R_i)
- *   ρ(r) = |ψ_total|²
+ * Physics model (two-level summation):
+ *   Orbitals are grouped by quantum numbers (n, l, m).
+ *   Within each group g:  ψ_g(r) = Σ sign_i · ψ_i(r − R_i)   [coherent]
+ *   Across groups:         ρ(r) = Σ_g |ψ_g|²                   [incoherent]
  *
- * The sign for each orbital is determined relative to the first orbital
- * (the reference):
+ * Coherent summation within a group captures molecular bonding between
+ * the same orbital type on different atoms (e.g. H₂ 1s + 1s).
+ * Incoherent summation across groups is correct because orbitals with
+ * different quantum numbers are orthogonal (e.g. 1s and 2p).
+ *
+ * The sign within each group is determined relative to the group's first
+ * entry (the reference):
  *   – same spin as reference → sign = −1  (antibonding, Pauli antisymmetry)
  *   – opposite spin          → sign = +1  (bonding, singlet pairing)
  *   – the reference itself   → sign = +1
- *
- * This gives the correct H₂ behaviour: opposite-spin electrons form a
- * bonding orbital (constructive interference between nuclei), while
- * same-spin electrons form an antibonding orbital (node between nuclei).
  */
 export const orbitalShaderCode = /* wgsl */`
   struct GlobalUniforms {
@@ -23,7 +25,7 @@ export const orbitalShaderCode = /* wgsl */`
     seed: f32,
     num_atoms: f32,
     max_coherent_psi: f32,
-    _pad1: f32,
+    num_groups: f32,
     _pad2: f32,
   };
 
@@ -36,6 +38,8 @@ export const orbitalShaderCode = /* wgsl */`
     pos_z: f32,
     r_max: f32,
     max_psi_signed: f32,   // |max_psi|; sign encodes spin (+up, −down)
+    group_id: f32,
+    electrons: f32,         // 1 or 2 — density weight
   };
 
   struct Particle {
@@ -152,8 +156,7 @@ export const orbitalShaderCode = /* wgsl */`
     let s = uniforms.scale;
     let max_coherent = uniforms.max_coherent_psi;
 
-    // Spin of the first orbital is the reference spin.
-    let ref_spin_sign = sign(atoms[0].max_psi_signed);
+    let num_groups_i = min(i32(uniforms.num_groups), 32);
 
     var seed = pcg_hash(i * 1099087573u + u32(uniforms.seed));
 
@@ -175,11 +178,19 @@ export const orbitalShaderCode = /* wgsl */`
       let wy = orbital.pos_y + s * r * sinTheta * sin(phi);
       let wz = orbital.pos_z + s * r * cosTheta;
 
-      // ── 2. Evaluate coherent ψ_total at the candidate world point ──
-      var psi_total: f32 = 0.0;
+      // ── 2. Per-group coherent ψ, then incoherent sum across groups ──
+      //    Same (n,l,m) on different atoms → coherent (molecular bonding)
+      //    Different (n,l,m) → incoherent (orthogonal orbitals)
+      var psi_group: array<f32, 32>;
+      var grp_ref_spin: array<f32, 32>;
+      for (var g: i32 = 0; g < 32; g++) {
+        psi_group[g] = 0.0;
+        grp_ref_spin[g] = 0.0;   // 0 = not yet assigned
+      }
 
       for (var j: i32 = 0; j < num_atoms; j++) {
         let aj = atoms[j];
+        let gid = i32(aj.group_id);
         let aj_spin_sign = sign(aj.max_psi_signed);
 
         // World → local displacement (undo orbital scale)
@@ -199,25 +210,43 @@ export const orbitalShaderCode = /* wgsl */`
           local_r, local_cosTheta, local_phi
         );
 
-        // Interference sign:
-        //   reference orbital (j==0): +1
+        // Weight by √electrons so density is n·|ψ|² (not n²·|ψ|²).
+        let weight = sqrt(aj.electrons);
+
+        // Interference sign within group (multi-atom molecular bonding):
+        //   first entry in group:     reference, phase = +1
         //   same spin as reference:   −1  (antibonding / Pauli antisymmetry)
         //   opposite spin:            +1  (bonding / singlet pairing)
         var phase: f32 = 1.0;
-        if (j > 0 && aj_spin_sign * ref_spin_sign > 0.0) {
+        if (grp_ref_spin[gid] == 0.0) {
+          grp_ref_spin[gid] = aj_spin_sign;
+        } else if (aj_spin_sign * grp_ref_spin[gid] > 0.0) {
           phase = -1.0;
         }
 
-        psi_total += phase * psi_j;
+        psi_group[gid] += phase * weight * psi_j;
       }
 
-      let psi2 = psi_total * psi_total;
+      // Incoherent sum across groups: ρ = Σ_g |ψ_g|²
+      var rho: f32 = 0.0;
+      var dominant_psi: f32 = 0.0;
+      var max_psi2: f32 = 0.0;
+      for (var g: i32 = 0; g < num_groups_i; g++) {
+        let pg = psi_group[g];
+        let pg2 = pg * pg;
+        rho += pg2;
+        if (pg2 > max_psi2) {
+          max_psi2 = pg2;
+          dominant_psi = pg;
+        }
+      }
+
       // Weight by r² of the importance-sampling orbital for volume element
-      let psi2r2 = psi2 * r * r;
+      let rho_r2 = rho * r * r;
 
       var prob: f32 = 0.0;
       if (max_coherent > 0.0) {
-        prob = psi2r2 / max_coherent;
+        prob = rho_r2 / max_coherent;
       }
 
       if (prob < threshold) { continue; }
@@ -225,9 +254,9 @@ export const orbitalShaderCode = /* wgsl */`
 
       pos = vec4<f32>(wx, wy, wz, 1.0);
 
-      // Colour by total ψ sign: blue = positive, orange/red = negative
+      // Colour by dominant group's ψ sign: blue = positive, orange/red = negative
       let t = pow(min(prob * 2.0, 1.0), 1.5);
-      if (psi_total >= 0.0) {
+      if (dominant_psi >= 0.0) {
         color = vec4<f32>(0.2 + 0.6 * t, 0.4 + 0.5 * t, 1.0, t);
       } else {
         color = vec4<f32>(1.0, 0.3 + 0.4 * t, 0.2 + 0.3 * t, t);

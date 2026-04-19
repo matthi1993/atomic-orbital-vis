@@ -73,6 +73,9 @@ export class AtomManager {
 
   private buildAtomConfigs(): AtomGPUConfig[] {
     const configs: AtomGPUConfig[] = [];
+    const groupMap = new Map<string, number>();
+    let nextGroupId = 0;
+
     for (const atom of this.all) {
       const orbitals = atom.renderOrbitals;
       if (orbitals.length === 0) continue;
@@ -80,25 +83,20 @@ export class AtomManager {
         const rMax = AtomManager.SAMPLING_EXTENT * orbital.n * orbital.n;
         const maxPsi = estimateMaxPsi(orbital.n, orbital.l, orbital.m, rMax);
 
-        // Expand each orbital into per-electron entries.
-        // Hund's rule: first fill is the atom's preferred spin direction.
-        const primarySpin = atom.spinUp ? 0.5 : -0.5;
-        const secondarySpin = -primarySpin;
+        // Same (n,l,m) across all atoms → same group (coherent molecular bonding).
+        // Different (n,l,m) → different group (incoherent, orthogonal orbitals).
+        const key = `${orbital.n}-${orbital.l}-${orbital.m}`;
+        if (!groupMap.has(key)) groupMap.set(key, nextGroupId++);
+        const groupId = groupMap.get(key)!;
 
-        if (orbital.electrons >= 1) {
-          configs.push({
-            n: orbital.n, l: orbital.l, m: orbital.m,
-            position: atom.position, rMax, maxPsi,
-            spin: primarySpin,
-          });
-        }
-        if (orbital.electrons >= 2) {
-          configs.push({
-            n: orbital.n, l: orbital.l, m: orbital.m,
-            position: atom.position, rMax, maxPsi,
-            spin: secondarySpin,
-          });
-        }
+        // One entry per orbital; electron count carried as a weight.
+        // Hund's rule: primary spin is the atom's preferred direction.
+        const spin = atom.spinUp ? 0.5 : -0.5;
+        configs.push({
+          n: orbital.n, l: orbital.l, m: orbital.m,
+          position: atom.position, rMax, maxPsi,
+          spin, groupId, electrons: orbital.electrons,
+        });
       }
     }
     return configs;

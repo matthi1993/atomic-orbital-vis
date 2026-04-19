@@ -4,6 +4,7 @@ import type { AxisHandles } from '../renderer/axis-handles.js';
 import type { RotationHandles } from '../renderer/rotation-handles.js';
 import type { AxesPlots } from '../renderer/axes-plots.js';
 import type { SceneManager } from '../renderer/scene-manager.js';
+import type { AnimationService } from './animation-service.js';
 import type { OrbitalParams } from '../types.js';
 
 /**
@@ -16,6 +17,11 @@ export class RenderLoopService {
   private elapsedTime = 0;
   private _params!: OrbitalParams;
 
+  /** Called every frame atoms move during animation – update nucleus/handle positions. */
+  onAtomsMoved: (() => void) | null = null;
+  /** Called every rendered frame – regenerate particles/field at target FPS. */
+  onRegenerate: (() => void) | null = null;
+
   constructor(
     private pointCloud: PointCloud,
     private nucleus: Nucleus,
@@ -23,6 +29,7 @@ export class RenderLoopService {
     private rotationHandles: RotationHandles,
     private axesPlots: AxesPlots,
     private sceneManager: SceneManager,
+    public animationService?: AnimationService,
   ) {}
 
   set params(p: OrbitalParams) {
@@ -43,10 +50,27 @@ export class RenderLoopService {
 
     const now = performance.now();
     const dt = Math.min((now - this.lastTime) / 1000, 0.05);
+
+    // Throttle rendering to target FPS
+    const minInterval = 1 / (this._params.targetFps || 60);
+    if (dt < minInterval) return;
+
     this.lastTime = now;
     this.elapsedTime += dt;
 
     const p = this._params;
+
+    // Physics animation step
+    if (p.animationEnabled && this.animationService) {
+      const moved = this.animationService.step(dt, p.scale, p.animationSpeed, p.forceScale, p.damping);
+      if (moved) {
+        this.onAtomsMoved?.();
+      }
+    }
+
+    // Regenerate particles/field every rendered frame
+    this.onRegenerate?.();
+
     this.pointCloud.pointSize = p.pointSize;
     this.pointCloud.variablePointSize = p.variablePointSize;
     this.pointCloud.opacity = p.electronOpacity;

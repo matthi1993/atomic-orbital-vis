@@ -15,8 +15,12 @@ import { AtomService } from '../services/atom-service.js';
 import { ParticleService } from '../services/particle-service.js';
 import { RenderLoopService } from '../services/render-loop-service.js';
 import { InteractionService } from '../services/interaction-service.js';
+import { FieldArrows } from '../renderer/field-arrows.js';
+import { FieldService } from '../services/field-service.js';
+import { AnimationService } from '../services/animation-service.js';
 import { theme } from './styles/index.js';
 import './render-panel.js';
+import './animation-panel.js';
 import './atom-editor.js';
 import './atom-list.js';
 import type { AtomEditorChange, AtomPresetChange, AtomOrbitalSelect, AtomSpinFlip } from './atom-editor.js';
@@ -69,6 +73,9 @@ export class OrbitalApp extends LitElement {
   private particleService!: ParticleService;
   private renderLoopService!: RenderLoopService;
   private interactionService!: InteractionService;
+  private fieldArrows!: FieldArrows;
+  private fieldService!: FieldService;
+  private animationService!: AnimationService;
 
   /* Drag-start tracking for real-time point-cloud transform */
   private _translationDragStart: [number, number, number] | null = null;
@@ -180,6 +187,23 @@ export class OrbitalApp extends LitElement {
       .left-column atom-editor {
         position: static;
       }
+
+      .right-column {
+        position: absolute;
+        top: var(--sp-lg);
+        right: var(--sp-lg);
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        gap: var(--sp-md);
+        max-height: calc(100vh - 2 * var(--sp-lg));
+        overflow-y: auto;
+      }
+
+      .right-column render-panel,
+      .right-column animation-panel {
+        position: static;
+      }
     `,
   ];
 
@@ -213,11 +237,18 @@ export class OrbitalApp extends LitElement {
           @atom-spin-flip=${this.onAtomSpinFlip}
         ></atom-editor>
       </div>
-      <render-panel
-        .params=${this.params}
-        @param-change=${this.onParamChange}
-        @camera-view=${this.onCameraView}
-      ></render-panel>
+      <div class="right-column">
+        <render-panel
+          .params=${this.params}
+          @param-change=${this.onParamChange}
+          @camera-view=${this.onCameraView}
+        ></render-panel>
+        <animation-panel
+          .params=${this.params}
+          @param-change=${this.onParamChange}
+          @animation-reset=${this.onAnimationReset}
+        ></animation-panel>
+      </div>
       <div class="bottom-right">
         <div class="legend">
           <div class="legend-title">Orbital colours</div>
@@ -264,20 +295,47 @@ export class OrbitalApp extends LitElement {
     this.selectionService = new SelectionService(this.atomManager, nucleus, axisHandles, rotationHandles, this.sceneManager);
     this.atomService = new AtomService(this.atomManager, nucleus, axisHandles, rotationHandles, this.sceneManager, this.selectionService);
     this.particleService = new ParticleService(this.atomManager, pipeline, pointCloud, nucleus, axesPlots, this.sceneManager);
-    this.renderLoopService = new RenderLoopService(pointCloud, nucleus, axisHandles, rotationHandles, axesPlots, this.sceneManager);
     this.interactionService = new InteractionService(this.sceneManager, nucleus, axisHandles, rotationHandles);
+    this.fieldArrows = new FieldArrows(this.sceneManager.scene);
+    this.fieldService = new FieldService(this.atomManager, this.fieldArrows, this.sceneManager);
+    this.animationService = new AnimationService(this.atomManager);
+    this.renderLoopService = new RenderLoopService(pointCloud, nucleus, axisHandles, rotationHandles, axesPlots, this.sceneManager, this.animationService);
 
     axisHandles.onDrag = this.onHandleDrag;
     axisHandles.onDragEnd = this.onHandleDragEnd;
     rotationHandles.onDrag = this.onRotationDrag;
     rotationHandles.onDragEnd = this.onRotationDragEnd;
 
-    // Create initial hydrogen atom at the origin
+    // Create two initial hydrogen atoms so the charge-field animation is visible
     this.atomService.addAtom();
+    const secondAtom = this.atomService.addAtom();
+    secondAtom.setPosition([6, 0, 0]);
+    nucleus.updatePosition(secondAtom.id, secondAtom.position);
     this.selectedAtomId = this.selectionService.selectedAtomId;
 
     this.renderLoopService.params = this.params;
+    this.renderLoopService.onAtomsMoved = () => {
+      // Update nucleus meshes and handles when atoms move
+      for (const atom of this.atomManager.all) {
+        nucleus.updatePosition(atom.id, atom.position);
+      }
+      const sel = this.atomManager.selectedAtom;
+      if (sel) {
+        axisHandles.updatePosition(sel.position);
+        rotationHandles.updatePosition(sel.position);
+      }
+      this.sceneManager.markDirty();
+      this.fieldService.markDirty();
+      this.atomVersion++;
+    };
+    this.renderLoopService.onRegenerate = () => {
+      // Force a fresh probabilistic sample every rendered frame at target FPS
+      this.atomManager.markAllDirty();
+      this.particleService.regenerate(this.params);
+      this.fieldService.update(this.params.scale);
+    };
     await this.particleService.regenerate(this.params);
+    this.fieldService.update(this.params.scale);
     this.renderLoopService.start();
 
     const canvas = this.interactionService.canvas;
@@ -311,12 +369,23 @@ export class OrbitalApp extends LitElement {
 
     if (key === 'count' || key === 'threshold' || key === 'scale') {
       this.atomManager.markAllDirty();
-      this.particleService.regenerate(this.params);
+      this.fieldService.markDirty();
+    }
+    if (key === 'showField') {
+      this.fieldArrows.visible = value as boolean;
+      this.sceneManager.markDirty();
+    }
+    if (key === 'animationEnabled' && !value) {
+      this.animationService.resetVelocities();
     }
   };
 
   private onCameraView = (e: CustomEvent<{ axis: string }>) => {
     this.sceneManager.lookAlongAxis(e.detail.axis as 'x' | 'y' | 'z');
+  };
+
+  private onAnimationReset = () => {
+    this.animationService.resetVelocities();
   };
 
   private onPointerDown = (e: PointerEvent) => {
@@ -369,39 +438,39 @@ export class OrbitalApp extends LitElement {
     const copyFrom = this.selectedAtomId ? this.atomManager.getAtom(this.selectedAtomId) : undefined;
     this.atomService.addAtom(copyFrom);
     this.selectedAtomId = this.selectionService.selectedAtomId;
-    this.particleService.regenerate(this.params);
+    this.fieldService.markDirty();
     this.atomVersion++;
   };
 
   private onAtomDelete = (e: CustomEvent<AtomDeleteRequest>) => {
     this.atomService.removeAtom(e.detail.atomId);
     this.selectedAtomId = this.selectionService.selectedAtomId;
-    this.particleService.regenerate(this.params);
+    this.fieldService.markDirty();
     this.atomVersion++;
   };
 
   private onAtomEdit = (e: CustomEvent<AtomEditorChange>) => {
     this.atomService.editAtom(e.detail.atomId, e.detail.key, e.detail.value);
-    this.particleService.regenerate(this.params);
+    this.fieldService.markDirty();
     this.atomVersion++;
   };
 
   private onAtomPreset = (e: CustomEvent<AtomPresetChange>) => {
     const { atomId, preset } = e.detail;
     this.atomService.applyPreset(atomId, preset.Z, preset.e);
-    this.particleService.regenerate(this.params);
+    this.fieldService.markDirty();
     this.atomVersion++;
   };
 
   private onAtomOrbitalSelect = (e: CustomEvent<AtomOrbitalSelect>) => {
     this.atomService.selectOrbital(e.detail.atomId, e.detail.layer, e.detail.orbitalIndex);
-    this.particleService.regenerate(this.params);
+    this.fieldService.markDirty();
     this.atomVersion++;
   };
 
   private onAtomSpinFlip = (e: CustomEvent<AtomSpinFlip>) => {
     this.atomService.flipSpin(e.detail.atomId);
-    this.particleService.regenerate(this.params);
+    this.fieldService.markDirty();
     this.atomVersion++;
   };
 
@@ -435,6 +504,8 @@ export class OrbitalApp extends LitElement {
     this._translationDragStart = null;
     this.atomService.handleDragEnd();
     await this.particleService.regenerate(this.params);
+    this.fieldService.markDirty();
+    this.fieldService.update(this.params.scale);
     this.pointCloud.clearDragTransform();
   };
 
@@ -473,6 +544,8 @@ export class OrbitalApp extends LitElement {
     this._rotationDragStart = null;
     this.atomService.handleRotationDragEnd();
     await this.particleService.regenerate(this.params);
+    this.fieldService.markDirty();
+    this.fieldService.update(this.params.scale);
     this.pointCloud.clearDragTransform();
   };
 }

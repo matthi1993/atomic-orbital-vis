@@ -29,6 +29,7 @@ export class Atom {
   private _selectedLayer: string = 'outer'; // 'outer', 'all', or 'n-l' key
   private _selectedOrbitalIndex: number | null = null; // null = all in layer
   private _spinUp: boolean; // true = unpaired electrons are spin-up (random at creation)
+  private _velocity: [number, number, number] = [0, 0, 0];
 
   constructor(n = 1, l = 0, m = 0, position: [number, number, number] = [0, 0, 0]) {
     this.id = `atom-${nextId++}`;
@@ -51,6 +52,11 @@ export class Atom {
   get electrons(): number { return this._electrons; }
   get dirty(): boolean { return this._dirty; }
   get particleData(): GeneratedParticles | null { return this._particleData; }
+  get velocity(): [number, number, number] { return this._velocity; }
+
+  setVelocity(v: [number, number, number]): void {
+    this._velocity = v;
+  }
 
   /** All subshells in Aufbau order */
   get subshellList(): Subshell[] {

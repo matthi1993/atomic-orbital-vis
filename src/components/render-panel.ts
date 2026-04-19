@@ -166,6 +166,16 @@ export class RenderPanel extends LitElement {
             />
             <label for="showHandles">Handles</label>
           </div>
+          <div class="toggle-row">
+            <input
+              type="checkbox"
+              id="showField"
+              .checked=${p.showField}
+              @change=${(e: Event) =>
+                this.emit('showField', (e.target as HTMLInputElement).checked)}
+            />
+            <label for="showField">Charge Field</label>
+          </div>
         `)}
 
         ${this.renderSection('pointCloud', 'Point Cloud', html`
